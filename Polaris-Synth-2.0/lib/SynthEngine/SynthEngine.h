@@ -1,3 +1,10 @@
+
 class SynthEngine {
+    private:
+
+
+
+    SynthEngine();
+
     
 };

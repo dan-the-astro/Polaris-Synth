@@ -5,7 +5,4 @@ class SynthVoice {
         // Constructor
     }
 
-    ~SynthVoice() {
-        // Destructor
-    }
 };

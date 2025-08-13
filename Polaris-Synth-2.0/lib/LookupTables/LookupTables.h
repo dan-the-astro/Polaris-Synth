@@ -15,7 +15,7 @@
 #define A4_FREQUENCY        440.0f  // standard reference
 #define A4_MIDI_NOTE        69      // standard reference
 
-// If you want fraction coverage from -2 semitones to +2 semitones:
+// If you want fraction coverage from -8 semitones to +8 semitones:
 // Regenerate the frac table if these are changed
 #define SEMITONE_RANGE_LOW  -8.0f
 #define SEMITONE_RANGE_HIGH  8.0f
