@@ -1,8 +1,8 @@
 #include <IOExpander.h>
 
-// Constructor: i2c_port, device i2c address
-MCP23017::MCP23017(i2c_port_t i2c_port, uint8_t i2c_addr)
-    : _i2c_port(i2c_port), _i2c_addr(i2c_addr)
+// Constructor: I2C bus, device i2c address
+MCP23017::MCP23017(I2CBus &bus, uint8_t i2c_addr)
+    : _bus(bus), _i2c_addr(i2c_addr)
 {
     // 1. Set all pins on both banks as inputs.
     writeReg(0x00, 0xFF); // IODIRA all inputs
@@ -35,7 +35,7 @@ void MCP23017::writeReg(uint8_t reg, uint8_t data)
     i2c_master_write_byte(cmd, reg, true);
     i2c_master_write_byte(cmd, data, true);
     i2c_master_stop(cmd);
-    i2c_master_cmd_begin(_i2c_port, cmd, pdMS_TO_TICKS(1000));
+    i2c_master_cmd_begin(_bus.port(), cmd, pdMS_TO_TICKS(1000));
     i2c_cmd_link_delete(cmd);
 }
 // Read from register 'reg' into data pointer
@@ -49,7 +49,7 @@ void MCP23017::readReg(uint8_t reg, uint8_t* data)
     i2c_master_write_byte(cmd, (_i2c_addr << 1) | I2C_MASTER_READ, true);
     i2c_master_read_byte(cmd, data, I2C_MASTER_NACK);
     i2c_master_stop(cmd);
-    i2c_master_cmd_begin(_i2c_port, cmd, pdMS_TO_TICKS(1000));
+    i2c_master_cmd_begin(_bus.port(), cmd, pdMS_TO_TICKS(1000));
     i2c_cmd_link_delete(cmd);
 }
 

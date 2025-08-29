@@ -7,12 +7,13 @@
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 #include <cstdint>
+#include "I2CBus.h"
 
 class MCP23017
 {
 public:
-    // Constructor: i2c_port, device i2c address
-    MCP23017(i2c_port_t i2c_port, uint8_t i2c_addr);
+    // Constructor: I2C bus and device i2c address
+    MCP23017(I2CBus &bus, uint8_t i2c_addr);
 
     // Interrupt handler to be attached to the ESP32 interrupt pin.
     // This clears the interrupt state by reading the INTCAP registers.
@@ -23,7 +24,7 @@ public:
     uint8_t readGPIOB();
 
 private:
-    i2c_port_t _i2c_port;
+    I2CBus &_bus;
     uint8_t _i2c_addr;
 
     // Write a single byte 'data' to register 'reg'
