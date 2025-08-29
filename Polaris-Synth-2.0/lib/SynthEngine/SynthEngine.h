@@ -1,10 +1,11 @@
+#include <cstdint>
 
 class SynthEngine {
     private:
 
 
 
-    SynthEngine();
+    SynthEngine(uint8_t numVoices);
 
     
 };
