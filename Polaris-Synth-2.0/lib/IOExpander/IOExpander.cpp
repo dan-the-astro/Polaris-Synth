@@ -1,7 +1,7 @@
 #include <IOExpander.h>
 
 // Constructor: I2C bus, device i2c address
-MCP23017::MCP23017(I2CBus &bus, uint8_t i2c_addr)
+IOExpander::IOExpander(I2CBus &bus, uint8_t i2c_addr)
     : _bus(bus), _i2c_addr(i2c_addr)
 {
     // 1. Set all pins on both banks as inputs.
@@ -18,7 +18,7 @@ MCP23017::MCP23017(I2CBus &bus, uint8_t i2c_addr)
 
 // Interrupt handler to be attached to the ESP32 interrupt pin.
 // This clears the interrupt state by reading the INTCAP registers.
-void MCP23017::handleInterrupt()
+void IOExpander::handleInterrupt()
 {
     uint8_t dummyA = 0, dummyB = 0;
     // Read captured values from both Port A & B.
@@ -27,7 +27,7 @@ void MCP23017::handleInterrupt()
     // TODO: Notify task that additional processing is needed.
 }
 // Write a single byte 'data' to register 'reg'
-void MCP23017::writeReg(uint8_t reg, uint8_t data)
+void IOExpander::writeReg(uint8_t reg, uint8_t data)
 {
     i2c_cmd_handle_t cmd = i2c_cmd_link_create();
     i2c_master_start(cmd);
@@ -39,7 +39,7 @@ void MCP23017::writeReg(uint8_t reg, uint8_t data)
     i2c_cmd_link_delete(cmd);
 }
 // Read from register 'reg' into data pointer
-void MCP23017::readReg(uint8_t reg, uint8_t* data)
+void IOExpander::readReg(uint8_t reg, uint8_t* data)
 {   
     i2c_cmd_handle_t cmd = i2c_cmd_link_create();
     i2c_master_start(cmd);
@@ -53,13 +53,13 @@ void MCP23017::readReg(uint8_t reg, uint8_t* data)
     i2c_cmd_link_delete(cmd);
 }
 
-uint8_t MCP23017::readGPIOA()
+uint8_t IOExpander::readGPIOA()
 {
     uint8_t data = 0;
     readReg(0x12, &data); // GPIOA register address is 0x12
     return data;
 }
-uint8_t MCP23017::readGPIOB()
+uint8_t IOExpander::readGPIOB()
 {
     uint8_t data = 0;
     readReg(0x13, &data); // GPIOB register address is 0x13
