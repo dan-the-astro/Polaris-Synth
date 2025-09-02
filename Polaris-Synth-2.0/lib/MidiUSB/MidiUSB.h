@@ -7,41 +7,47 @@
 
 #include "MidiHandler.h"
 
-/**
- * MidiUSB sets up the MAX3421E USB host controller and forwards any MIDI
- * messages from attached USB MIDI devices to a MidiHandler instance. The class
- * itself performs no interpretation of the MIDI data.
- */
 class MidiUSB {
 public:
-    /**
-     * Create a new MidiUSB interface.
-     * @param interruptPin GPIO pin used for the MAX3421E INT line.
-     * @param parser       MidiHandler instance that will parse received data.
-     */
-    explicit MidiUSB(int interruptPin, MidiHandler &parser);
+  explicit MidiUSB(int intPin = 27, int taskCore = 1, UBaseType_t taskPrio = 1);
 
-    /**
-     * Initialise the MAX3421E and USB host stack.
-     * @return true on success, false otherwise.
-     */
-    bool begin();
+  // Initialize USB core and start background task. Returns true on success.
+  bool begin(MidiHandler* handler);
 
-    /**
-     * Process pending USB transactions and pass any MIDI messages to the
-     * parser. Should be called frequently from the main loop.
-     */
-    void task();
+  // Stop the background task and detach interrupt.
+  void end();
 
 private:
-    static void IRAM_ATTR usbInterrupt();
+  // --- ISR & task glue ---
+  static void IRAM_ATTR isrThunk(void* arg);
+  static void taskThunk(void* arg);
 
-    static MidiUSB *s_instance;
+  void isr();
+  void taskLoop();
 
-    int _intPin;
-    USB _usb;
-    USBH_MIDI _midi;
-    MidiHandler &_parser;
-    volatile bool _irqFlag;
+  void handleUsbOnce();
+  void drainMidi();
+
+  // Decode USB-MIDI CIN to number of valid MIDI bytes in pkt[1..3].
+  static uint8_t cinToMsgLen(uint8_t cin, uint8_t statusByte);
+
+private:
+  // UHS2 core + MIDI class
+  USB usb_;
+  USBH_MIDI midi_{&usb_};
+
+  MidiHandler* handler_ = nullptr;
+
+  // INT# from MAX3421E
+  int intPin_ = -1;
+
+  // Interrupt -> task sync
+  SemaphoreHandle_t sem_ = nullptr;
+  TaskHandle_t task_ = nullptr;
+  int taskCore_ = 1;
+  UBaseType_t taskPrio_ = 1;
+
+  // Optional: coalesce multiple INTs before running heavy work
+  volatile bool intPending_ = false;
 };
 
