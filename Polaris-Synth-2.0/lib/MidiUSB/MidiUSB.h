@@ -9,7 +9,7 @@
 
 class MidiUSB {
 public:
-  explicit MidiUSB(int intPin = 27, int taskCore = 1, UBaseType_t taskPrio = 1);
+  explicit MidiUSB(int intPin = 2, int taskCore = 1, UBaseType_t taskPrio = 1);
 
   // Initialize USB core and start background task. Returns true on success.
   bool begin(MidiHandler* handler);
