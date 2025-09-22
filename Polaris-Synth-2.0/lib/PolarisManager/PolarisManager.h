@@ -36,10 +36,7 @@
 class PolarisManager {
 
 public:
-
-    PolarisManager() {
-        init_hardware();
-    }
+    PolarisManager() { init_hardware(); }
 
 private:
 
@@ -51,6 +48,8 @@ private:
     ExternalADC* adc_1 = nullptr;
     FrontPanelState* front_panel_state = nullptr;
     MidiUSB* midi_usb = nullptr;
+
+    // IO Expander interrupts now managed inside FrontPanelState.
 
 
     void init_hardware();

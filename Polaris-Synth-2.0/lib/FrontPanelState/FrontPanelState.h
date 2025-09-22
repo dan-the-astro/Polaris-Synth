@@ -17,13 +17,53 @@ class FrontPanelState {
         IOExpander* io_expander_2 = nullptr; // Second IO Expander for front panel controls
 
 
-        FrontPanelState(ExternalADC* adc0_ptr, ExternalADC* adc1_ptr, IOExpander* ioexp_ptr, IOExpander* ioexp2_ptr) {
+        FrontPanelState(ExternalADC* adc0_ptr, ExternalADC* adc1_ptr, IOExpander* ioexp_ptr, IOExpander* ioexp2_ptr,
+                        gpio_num_t exp1_int_pin = static_cast<gpio_num_t>(34),
+                        gpio_num_t exp2_int_pin = static_cast<gpio_num_t>(35)) {
             adc0 = adc0_ptr;
             adc1 = adc1_ptr;
             io_expander = ioexp_ptr;
             io_expander_2 = ioexp2_ptr;
 
+            // Configure INT pins if valid numbers were provided
+            if (exp1_int_pin != static_cast<gpio_num_t>(-1)) {
+                gpio_config_t cfg = {};
+                cfg.intr_type = GPIO_INTR_NEGEDGE; // MCP23017 INT active low
+                cfg.mode = GPIO_MODE_INPUT;
+                cfg.pin_bit_mask = 1ULL << exp1_int_pin;
+                cfg.pull_up_en = GPIO_PULLUP_ENABLE; // internal pull-up (INT is open-drain)
+                cfg.pull_down_en = GPIO_PULLDOWN_DISABLE;
+                gpio_config(&cfg);
+            }
+            if (exp2_int_pin != static_cast<gpio_num_t>(-1)) {
+                gpio_config_t cfg = {};
+                cfg.intr_type = GPIO_INTR_NEGEDGE;
+                cfg.mode = GPIO_MODE_INPUT;
+                cfg.pin_bit_mask = 1ULL << exp2_int_pin;
+                cfg.pull_up_en = GPIO_PULLUP_ENABLE;
+                cfg.pull_down_en = GPIO_PULLDOWN_DISABLE;
+                gpio_config(&cfg);
+            }
 
+            // Ensure ISR service installed
+            static bool isrInstalled = false;
+            if (!isrInstalled) {
+                if (gpio_install_isr_service(0) == ESP_OK) {
+                    isrInstalled = true;
+                }
+            }
+
+            // Register ISR handlers if pins supplied
+            if (exp1_int_pin != static_cast<gpio_num_t>(-1)) {
+                gpio_isr_handler_add(exp1_int_pin, &FrontPanelState::expander1Isr, this);
+            }
+            if (exp2_int_pin != static_cast<gpio_num_t>(-1)) {
+                gpio_isr_handler_add(exp2_int_pin, &FrontPanelState::expander2Isr, this);
+            }
+
+            // Enable interrupt-on-change inside expanders
+            if (io_expander) io_expander->attachInterruptLine();
+            if (io_expander_2) io_expander_2->attachInterruptLine();
         }
 
         // LFO parameters
@@ -93,6 +133,19 @@ class FrontPanelState {
         bool unison = false; // is Unison mode enabled
 
     private:
+    // Static ISR trampolines (C-style signature). They set IOExpander flag and our own flag.
+    static void IRAM_ATTR expander1Isr(void* arg) {
+        auto* self = static_cast<FrontPanelState*>(arg);
+        if (self && self->io_expander) {
+            self->io_expander->isrFlagSet();
+        }
+    }
+    static void IRAM_ATTR expander2Isr(void* arg) {
+        auto* self = static_cast<FrontPanelState*>(arg);
+        if (self && self->io_expander_2) {
+            self->io_expander_2->isrFlagSet();
+        }
+    }
     // counters for which ADC channel to read next
     int adc0_channel = 0; // ADC channel for front panel reading
     int adc1_channel = 0; // ADC channel for front panel reading
@@ -101,6 +154,9 @@ class FrontPanelState {
 
     // Initial scan of the front panel to set initial states
     void initialScan();
+
+    // Periodic check of IO Expanders to update states
+    void checkIOExpanders(); 
 
     // Setters (now private; accept a raw int input; implementation will transform and store as Q16.16 where applicable)
     void setLFOInitialAmount(int value);

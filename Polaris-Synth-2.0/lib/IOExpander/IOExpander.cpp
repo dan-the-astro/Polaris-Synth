@@ -4,27 +4,47 @@
 IOExpander::IOExpander(I2CBus &bus, uint8_t i2c_addr)
     : _bus(bus), _i2c_addr(i2c_addr)
 {
-    // 1. Set all pins on both banks as inputs.
+    // 1. Set all pins on both banks as inputs (default safe state).
     writeReg(0x00, 0xFF); // IODIRA all inputs
     writeReg(0x01, 0xFF); // IODIRB all inputs
-    // 2. Enable interrupt-on-change for all pins.
-    writeReg(0x04, 0xFF); // GPINTENA
-    writeReg(0x05, 0xFF); // GPINTENB
-    // 3. Configure the MCP23017 to mirror interrupts on INTA and INTB.
-    // Set the MIRROR bit (bit 6) in IOCON. Write the value to IOCON.
-    writeReg(0x0A, 0x40);
-    // 4. Optionally configure default compare behavior here if needed.
+
+    // 2. Disable interrupts until user calls attachInterruptLine().
+    writeReg(0x04, 0x00); // GPINTENA
+    writeReg(0x05, 0x00); // GPINTENB
+
+    // 3. Configure IOCON: MIRROR (bit6) set so a single INT line can be used.
+    writeReg(0x0A, 0x40); // IOCON
+
+    // 4. Interrupt-on-change vs DEFVAL comparison: use change (INTCON=0).
+    writeReg(0x08, 0x00); // INTCONA
+    writeReg(0x09, 0x00); // INTCONB
 }
 
-// Interrupt handler to be attached to the ESP32 interrupt pin.
-// This clears the interrupt state by reading the INTCAP registers.
-void IOExpander::handleInterrupt()
+// Enable interrupt-on-change for all pins and mirror onto single INT line.
+void IOExpander::attachInterruptLine()
 {
-    uint8_t dummyA = 0, dummyB = 0;
-    // Read captured values from both Port A & B.
-    readReg(0x10, &dummyA);
-    readReg(0x11, &dummyB);
-    // TODO: Notify task that additional processing is needed.
+    // Enable all 8 bits on each port.
+    writeReg(0x04, 0xFF); // GPINTENA
+    writeReg(0x05, 0xFF); // GPINTENB
+    // IOCON already had MIRROR set in constructor; ensure it still is.
+    writeReg(0x0A, 0x40);
+}
+
+// Clear MCP23017 latched interrupt by reading INTCAP registers.
+void IOExpander::acknowledgeInterrupt()
+{
+    uint8_t dummy;
+    readReg(0x10, &dummy); // INTCAPA
+    readReg(0x11, &dummy); // INTCAPB
+}
+
+bool IOExpander::consumeInterruptFlag(bool clear)
+{
+    bool wasSet = _interruptPending;
+    if (wasSet && clear) {
+        _interruptPending = false;
+    }
+    return wasSet;
 }
 // Write a single byte 'data' to register 'reg'
 void IOExpander::writeReg(uint8_t reg, uint8_t data)
@@ -64,4 +84,20 @@ uint8_t IOExpander::readGPIOB()
     uint8_t data = 0;
     readReg(0x13, &data); // GPIOB register address is 0x13
     return data;
+}
+
+uint16_t IOExpander::readGPIOPacked()
+{
+    uint8_t a = 0, b = 0;
+    readReg(0x12, &a); // GPIOA
+    readReg(0x13, &b); // GPIOB
+    return static_cast<uint16_t>(a) | (static_cast<uint16_t>(b) << 8);
+}
+
+uint16_t IOExpander::readCapturedPacked()
+{
+    uint8_t a = 0, b = 0;
+    readReg(0x10, &a); // INTCAPA (reading clears)
+    readReg(0x11, &b); // INTCAPB
+    return static_cast<uint16_t>(a) | (static_cast<uint16_t>(b) << 8);
 }

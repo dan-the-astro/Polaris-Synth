@@ -19,11 +19,11 @@ void PolarisManager::init_hardware() {
     }
     Serial.println("I2C bus initialized successfully.");
 
-    // Allocate dependent devices if not already allocated
-    if (!io_expander_0) io_expander_0 = new IOExpander(*i2c_bus, ADC0_I2C_ADDR);
-    if (!io_expander_1) io_expander_1 = new IOExpander(*i2c_bus, ADC1_I2C_ADDR);
-    if (!adc_0) adc_0 = new ExternalADC(*i2c_bus, IOEXPANDER0_I2C_ADDR);
-    if (!adc_1) adc_1 = new ExternalADC(*i2c_bus, IOEXPANDER1_I2C_ADDR);
+    // Allocate dependent devices if not already allocated (note: correct mapping of addresses)
+    if (!io_expander_0) io_expander_0 = new IOExpander(*i2c_bus, IOEXPANDER0_I2C_ADDR);
+    if (!io_expander_1) io_expander_1 = new IOExpander(*i2c_bus, IOEXPANDER1_I2C_ADDR);
+    if (!adc_0) adc_0 = new ExternalADC(*i2c_bus, ADC0_I2C_ADDR);
+    if (!adc_1) adc_1 = new ExternalADC(*i2c_bus, ADC1_I2C_ADDR);
 
     if (!front_panel_state) {
         front_panel_state = new FrontPanelState(adc_0, adc_1, io_expander_0, io_expander_1);
@@ -32,7 +32,7 @@ void PolarisManager::init_hardware() {
       // Setting up peripheral devices (ADCs, IO expanders, SD card, etc.)
     // Requires: #include <driver/gpio.h> and #include "freertos/FreeRTOS.h" / "freertos/task.h"
 
-    // Configure interrupt pins as inputs with internal pull-ups
+    // Configure ADC interrupt pins as inputs with internal pull-ups
     gpio_config_t io_conf = {};
     io_conf.intr_type = GPIO_INTR_DISABLE;
     io_conf.mode = GPIO_MODE_INPUT;
@@ -40,6 +40,7 @@ void PolarisManager::init_hardware() {
     io_conf.pull_down_en = GPIO_PULLDOWN_DISABLE;
     io_conf.pull_up_en = GPIO_PULLUP_ENABLE;
     gpio_config(&io_conf);
+
 
     // Configure the 4-bit counter pins as outputs
     io_conf = {};
