@@ -90,6 +90,8 @@ class FrontPanelState {
         bool OscB_square_wave = false; // is square wave enabled
         bool OscB_saw_wave = false; // is saw wave enabled
         bool OscB_sine_wave = false; // is sine wave enabled
+        bool OscB_lo_freq = false; // is Osc B in low-frequency mode
+        bool OscB_keyboard = false; // is Osc B keyboard-tracking enabled
 
         // Wheel modulation parameters
         uint32_t Wheel_source_mix = 0; // Q16.16 fixed point
@@ -150,40 +152,45 @@ class FrontPanelState {
     int adc0_channel = 0; // ADC channel for front panel reading
     int adc1_channel = 0; // ADC channel for front panel reading
 
-
-
     // Initial scan of the front panel to set initial states
     void initialScan();
 
     // Periodic check of IO Expanders to update states
     void checkIOExpanders(); 
 
+    // Periodic check of ADCs to update states
+    void checkADCs(); 
+
+    // State machines for ADC reading (non-blocking)
+    void ADC0StateMachine();
+    void ADC1StateMachine();
+
     // Setters (now private; accept a raw int input; implementation will transform and store as Q16.16 where applicable)
-    void setLFOInitialAmount(int value);
-    void setLFOFrequency(int value);
-    void setOscAFrequency(int value);
-    void setOscAPulseWidth(int value);
-    void setOscBFrequency(int value);
-    void setOscBPulseWidth(int value);
-    void setOscBFine(int value);
-    void setWheelSourceMix(int value);
-    void setPolyFiltEnvAmt(int value);
-    void setPolyOscBAmount(int value);
-    void setMixerOscALevel(int value);
-    void setMixerOscBLevel(int value);
-    void setMixerNoiseLevel(int value);
-    void setFilterCutoff(int value);
-    void setFilterResonance(int value);
-    void setFilterEnvAmt(int value);
-    void setFilterAttack(int value);
-    void setFilterDecay(int value);
-    void setFilterSustain(int value);
-    void setFilterRelease(int value);
-    void setAmpAttack(int value);
-    void setAmpDecay(int value);
-    void setAmpSustain(int value);
-    void setAmpRelease(int value);
-    void setMasterLevel(int value);
-    void setGlideRate(int value);
+    void setLFOInitialAmount(int16_t value);
+    void setLFOFrequency(int16_t value);
+    void setOscAFrequency(int16_t value);
+    void setOscAPulseWidth(int16_t value);
+    void setOscBFrequency(int16_t value);
+    void setOscBPulseWidth(int16_t value);
+    void setOscBFine(int16_t value);
+    void setWheelSourceMix(int16_t value);
+    void setPolyFiltEnvAmt(int16_t value);
+    void setPolyOscBAmount(int16_t value);
+    void setMixerOscALevel(int16_t value);
+    void setMixerOscBLevel(int16_t value);
+    void setMixerNoiseLevel(int16_t value);
+    void setFilterCutoff(int16_t value);
+    void setFilterResonance(int16_t value);
+    void setFilterEnvAmt(int16_t value);
+    void setFilterAttack(int16_t value);
+    void setFilterDecay(int16_t value);
+    void setFilterSustain(int16_t value);
+    void setFilterRelease(int16_t value);
+    void setAmpAttack(int16_t value);
+    void setAmpDecay(int16_t value);
+    void setAmpSustain(int16_t value);
+    void setAmpRelease(int16_t value);
+    void setMasterLevel(int16_t value);
+    void setGlideRate(int16_t value);
 
 };
