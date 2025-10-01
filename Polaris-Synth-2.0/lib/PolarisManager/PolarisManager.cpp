@@ -25,12 +25,8 @@ void PolarisManager::init_hardware() {
     if (!adc_0) adc_0 = new ExternalADC(*i2c_bus, ADC0_I2C_ADDR);
     if (!adc_1) adc_1 = new ExternalADC(*i2c_bus, ADC1_I2C_ADDR);
 
-    if (!front_panel_state) {
-        front_panel_state = new FrontPanelState(adc_0, adc_1, io_expander_0, io_expander_1);
-    }
+    // Setting up peripheral devices (ADCs, IO expanders, SD card, etc.)
 
-      // Setting up peripheral devices (ADCs, IO expanders, SD card, etc.)
-    // Requires: #include <driver/gpio.h> and #include "freertos/FreeRTOS.h" / "freertos/task.h"
 
     // Configure ADC interrupt pins as inputs with internal pull-ups
     gpio_config_t io_conf = {};
@@ -63,6 +59,11 @@ void PolarisManager::init_hardware() {
     vTaskDelay(pdMS_TO_TICKS(1));
     gpio_set_level(static_cast<gpio_num_t>(CNT_RES1), 0);
     gpio_set_level(static_cast<gpio_num_t>(CNT_RES2), 0);
+
+    // Initialize front panel state manager
+    if (!front_panel_state) {
+        front_panel_state = new FrontPanelState(adc_0, adc_1, io_expander_0, io_expander_1);
+    }
 
     Serial.println("Hardware objects allocated and initialized.");
 }

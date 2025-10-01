@@ -2,6 +2,41 @@
 
 // Initial scan of the front panel to set initial states
 void FrontPanelState::initialScan() {
+    // Read initial states from both IO expanders
+    if (io_expander) {
+        uint16_t states = io_expander->readGPIOPacked();
+        LFO_saw_wave = states & (1 << 0);
+        LFO_triangle_wave = states & (1 << 1);
+        LFO_square_wave = states & (1 << 2);
+        LFO_sine_wave = states & (1 << 3);
+        OscA_saw_wave = states & (1 << 4);
+        OscA_triangle_wave = states & (1 << 5);
+        OscA_square_wave = states & (1 << 6);
+        OscA_sine_wave = states & (1 << 7);
+        OscB_saw_wave = states & (1 << 8);
+        OscB_triangle_wave = states & (1 << 9);
+        OscB_square_wave = states & (1 << 10);
+        OscB_sine_wave = states & (1 << 11);
+        OscB_lo_freq = states & (1 << 12);
+        OscB_keyboard = states & (1 << 13);
+        Wheel_freq_A = states & (1 << 14);
+        Wheel_freq_B = states & (1 << 15);
+    }
+    if (io_expander_2) {
+        uint16_t states = io_expander_2->readGPIOPacked();
+        Wheel_pw_A = states & (1 << 0);
+        Wheel_pw_B = states & (1 << 1);
+        Wheel_filter_cutoff = states & (1 << 2);
+        Poly_freq_A = states & (1 << 3);
+        Poly_pw_A = states & (1 << 4);
+        Poly_filter_cutoff = states & (1 << 5);
+        Filter_keytrack = states & (1 << 6);
+        unison = states & (1 << 7);
+    }
+    // Read initial ADC values to set continuous parameters
+    for (int i = 0; i < 16; i++) {
+        checkADCs();
+    }
 }
 
 void FrontPanelState::checkIOExpanders() {
@@ -224,11 +259,27 @@ void FrontPanelState::setOscAPulseWidth(int16_t value) {
     OscA_pulse_width = (static_cast<uint32_t>(value) << 16) / 1650;
  }
 
-void FrontPanelState::setOscBFrequency(int16_t value) { (void)value; }
+void FrontPanelState::setOscBFrequency(int16_t value) { 
+    // Map 0-1650 to -7 to +7 octaves (Q16.16 fixed point)
+    if (value < 0) value = 0;
+    if (value > 1650) value = 1650;
+    int32_t freq = ((static_cast<int32_t>(value) - 825) * 1000000) / 825;
+    OscB_frequency = freq << 16;
+ }
 
-void FrontPanelState::setOscBPulseWidth(int16_t value) { (void)value; }
+void FrontPanelState::setOscBPulseWidth(int16_t value) { 
+    // Map 0-1650 to 0.0 - 1.0 (Q16.16 fixed point)
+    if (value < 0) value = 0;
+    if (value > 1650) value = 1650;
+    OscB_pulse_width = (static_cast<uint32_t>(value) << 16) / 1650;
+ }
 
-void FrontPanelState::setOscBFine(int16_t value) { (void)value; }
+void FrontPanelState::setOscBFine(int16_t value) { 
+    // Map 0-1650 to 0.0 - 1.0 (Q16.16 fixed point)
+    if (value < 0) value = 0;
+    if (value > 1650) value = 1650;
+    OscB_fine = (static_cast<uint32_t>(value) << 16) / 1650;
+ }
 
 void FrontPanelState::setWheelSourceMix(int16_t value) { (void)value; }
 

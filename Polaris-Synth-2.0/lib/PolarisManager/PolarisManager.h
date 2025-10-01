@@ -36,7 +36,11 @@
 class PolarisManager {
 
 public:
-    PolarisManager() { init_hardware(); }
+    PolarisManager() { 
+        init_hardware(); 
+        // Start front panel polling task
+        front_panel_task();
+    }
 
 private:
 
@@ -49,10 +53,18 @@ private:
     FrontPanelState* front_panel_state = nullptr;
     MidiUSB* midi_usb = nullptr;
 
-    // IO Expander interrupts now managed inside FrontPanelState.
-
-
+    // Hardware initialization function
     void init_hardware();
+
+    // Task to periodically poll front panel state
+    void front_panel_task() {
+        for (;;) {
+            if (front_panel_state) {
+                front_panel_state->loopTask();
+            }
+        }
+    }
+
     ~PolarisManager() {
         // Free in reverse dependency order
         if (front_panel_state) { delete front_panel_state; front_panel_state = nullptr; }

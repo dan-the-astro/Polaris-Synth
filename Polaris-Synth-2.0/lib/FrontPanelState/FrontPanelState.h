@@ -16,6 +16,13 @@ class FrontPanelState {
         IOExpander* io_expander = nullptr; // IO Expander for front panel controls
         IOExpander* io_expander_2 = nullptr; // Second IO Expander for front panel controls
 
+        // Task that runs in the background to periodically check IO Expanders and ADCs
+        void loopTask() {
+                checkIOExpanders();
+                checkADCs();
+                yield(); // yield to other tasks
+        }
+
 
         FrontPanelState(ExternalADC* adc0_ptr, ExternalADC* adc1_ptr, IOExpander* ioexp_ptr, IOExpander* ioexp2_ptr,
                         gpio_num_t exp1_int_pin = static_cast<gpio_num_t>(34),
@@ -64,6 +71,9 @@ class FrontPanelState {
             // Enable interrupt-on-change inside expanders
             if (io_expander) io_expander->attachInterruptLine();
             if (io_expander_2) io_expander_2->attachInterruptLine();
+
+            // Run initial scan to set initial states
+            initialScan();
         }
 
         // LFO parameters
@@ -135,62 +145,62 @@ class FrontPanelState {
         bool unison = false; // is Unison mode enabled
 
     private:
-    // Static ISR trampolines (C-style signature). They set IOExpander flag and our own flag.
-    static void IRAM_ATTR expander1Isr(void* arg) {
-        auto* self = static_cast<FrontPanelState*>(arg);
-        if (self && self->io_expander) {
-            self->io_expander->isrFlagSet();
+        // Static ISR trampolines (C-style signature). They set IOExpander flag and our own flag.
+        static void IRAM_ATTR expander1Isr(void* arg) {
+            auto* self = static_cast<FrontPanelState*>(arg);
+            if (self && self->io_expander) {
+                self->io_expander->isrFlagSet();
+            }
         }
-    }
-    static void IRAM_ATTR expander2Isr(void* arg) {
-        auto* self = static_cast<FrontPanelState*>(arg);
-        if (self && self->io_expander_2) {
-            self->io_expander_2->isrFlagSet();
+        static void IRAM_ATTR expander2Isr(void* arg) {
+            auto* self = static_cast<FrontPanelState*>(arg);
+            if (self && self->io_expander_2) {
+                self->io_expander_2->isrFlagSet();
+            }
         }
-    }
-    // counters for which ADC channel to read next
-    int adc0_channel = 0; // ADC channel for front panel reading
-    int adc1_channel = 0; // ADC channel for front panel reading
+        // counters for which ADC channel to read next
+        int adc0_channel = 0; // ADC channel for front panel reading
+        int adc1_channel = 0; // ADC channel for front panel reading
 
-    // Initial scan of the front panel to set initial states
-    void initialScan();
+        // Initial scan of the front panel to set initial states
+        void initialScan();
 
-    // Periodic check of IO Expanders to update states
-    void checkIOExpanders(); 
+        // Periodic check of IO Expanders to update states
+        void checkIOExpanders(); 
 
-    // Periodic check of ADCs to update states
-    void checkADCs(); 
+        // Periodic check of ADCs to update states
+        void checkADCs(); 
 
-    // State machines for ADC reading (non-blocking)
-    void ADC0StateMachine();
-    void ADC1StateMachine();
+        // State machines for ADC reading (non-blocking)
+        void ADC0StateMachine();
+        void ADC1StateMachine();
 
-    // Setters (now private; accept a raw int input; implementation will transform and store as Q16.16 where applicable)
-    void setLFOInitialAmount(int16_t value);
-    void setLFOFrequency(int16_t value);
-    void setOscAFrequency(int16_t value);
-    void setOscAPulseWidth(int16_t value);
-    void setOscBFrequency(int16_t value);
-    void setOscBPulseWidth(int16_t value);
-    void setOscBFine(int16_t value);
-    void setWheelSourceMix(int16_t value);
-    void setPolyFiltEnvAmt(int16_t value);
-    void setPolyOscBAmount(int16_t value);
-    void setMixerOscALevel(int16_t value);
-    void setMixerOscBLevel(int16_t value);
-    void setMixerNoiseLevel(int16_t value);
-    void setFilterCutoff(int16_t value);
-    void setFilterResonance(int16_t value);
-    void setFilterEnvAmt(int16_t value);
-    void setFilterAttack(int16_t value);
-    void setFilterDecay(int16_t value);
-    void setFilterSustain(int16_t value);
-    void setFilterRelease(int16_t value);
-    void setAmpAttack(int16_t value);
-    void setAmpDecay(int16_t value);
-    void setAmpSustain(int16_t value);
-    void setAmpRelease(int16_t value);
-    void setMasterLevel(int16_t value);
-    void setGlideRate(int16_t value);
+        // Setters (now private; accept a raw int input; implementation will transform and store as Q16.16 where applicable)
+        void setLFOInitialAmount(int16_t value);
+        void setLFOFrequency(int16_t value);
+        void setOscAFrequency(int16_t value);
+        void setOscAPulseWidth(int16_t value);
+        void setOscBFrequency(int16_t value);
+        void setOscBPulseWidth(int16_t value);
+        void setOscBFine(int16_t value);
+        void setWheelSourceMix(int16_t value);
+        void setPolyFiltEnvAmt(int16_t value);
+        void setPolyOscBAmount(int16_t value);
+        void setMixerOscALevel(int16_t value);
+        void setMixerOscBLevel(int16_t value);
+        void setMixerNoiseLevel(int16_t value);
+        void setFilterCutoff(int16_t value);
+        void setFilterResonance(int16_t value);
+        void setFilterEnvAmt(int16_t value);
+        void setFilterAttack(int16_t value);
+        void setFilterDecay(int16_t value);
+        void setFilterSustain(int16_t value);
+        void setFilterRelease(int16_t value);
+        void setAmpAttack(int16_t value);
+        void setAmpDecay(int16_t value);
+        void setAmpSustain(int16_t value);
+        void setAmpRelease(int16_t value);
+        void setMasterLevel(int16_t value);
+        void setGlideRate(int16_t value);
 
 };
