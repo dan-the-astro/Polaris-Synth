@@ -6,17 +6,23 @@ void PolarisManager::init_hardware() {
     // Initialize serial for debugging
     Serial.begin(115200);
 
+    // Initialize Display Manager
+    if (!display_manager) {
+        display_manager = new DisplayManager();
+    }
+
     // Allocate I2C bus (if not already)
     if (!i2c_bus) {
         i2c_bus = new I2CBus(I2C_NUM_0);
+        Serial.println("I2C bus object created.");
     }
 
     // Initialize I2C bus pins and frequency
-    esp_err_t err = i2c_bus->init(GPIO_NUM_21, GPIO_NUM_22, 400000);
-    if (err != ESP_OK) {
-        Serial.printf("Failed to initialize I2C bus: %s\n", esp_err_to_name(err));
-        return; // Abort further hardware init if bus failed
-    }
+    // esp_err_t err = i2c_bus->init(GPIO_NUM_21, GPIO_NUM_22, 400000);
+    // if (err != ESP_OK) {
+    //     Serial.printf("Failed to initialize I2C bus: %s\n", esp_err_to_name(err));
+    //     return; // Abort further hardware init if bus failed
+    // }
     Serial.println("I2C bus initialized successfully.");
 
     // Allocate dependent devices if not already allocated (note: correct mapping of addresses)

@@ -90,16 +90,19 @@ void FrontPanelState::checkIOExpanders() {
 
 void FrontPanelState::checkADCs() {
     ADC0StateMachine();
-    ADC1StateMachine();
+    ADC1StateMachine();  // Comment out to test
 }
 
 void FrontPanelState::ADC0StateMachine() {
 
     int16_t reading = adc0->readChannel(0); // Read channel 0
 
+    //Serial.printf("ADC0 Channel %d Reading: %d\n", adc0_channel, reading);
+
     switch (adc0_channel) {
         case 0:
             setLFOInitialAmount(reading);
+            //Serial.println(reading);
             adc0_channel = 1;
             break;
         case 1:
@@ -167,7 +170,7 @@ void FrontPanelState::ADC0StateMachine() {
     // Advance 74HC393 counter to select next ADC channel
     gpio_set_level(static_cast<gpio_num_t>(32), 1); // Set CLK high
     gpio_set_level(static_cast<gpio_num_t>(32), 0); // Set CLK low
-
+    
 }
 
 

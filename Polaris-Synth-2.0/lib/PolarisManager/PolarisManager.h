@@ -6,6 +6,7 @@
 #include "ExternalADC.h"
 #include "MidiUSB.h"
 #include "FrontPanelState.h"
+#include "DisplayManager.h"
 
 #define ADC0_I2C_ADDR 0x49
 #define ADC1_I2C_ADDR 0x48
@@ -52,6 +53,7 @@ private:
     ExternalADC* adc_1 = nullptr;
     FrontPanelState* front_panel_state = nullptr;
     MidiUSB* midi_usb = nullptr;
+    DisplayManager* display_manager = nullptr;
 
     // Hardware initialization function
     void init_hardware();

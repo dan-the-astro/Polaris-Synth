@@ -1,4 +1,5 @@
 #include <cstdint>
+#include "SynthVoice.h"
 
 class SynthEngine {
     private:
