@@ -25,6 +25,15 @@ public:
     // the given channel [0‑3]. Returns raw 12‑bit signed value.
     int16_t readChannel(uint8_t channel);
 
+    // Start a single-shot conversion without waiting for completion.
+    // Use readConversionResult() to read the result later (~303µs after).
+    void startConversion(uint8_t channel);
+
+    // Read the result of a previously started conversion.
+    // Should be called at least ~303µs after startConversion().
+    // Returns raw 12‑bit signed value.
+    int16_t readConversionResult();
+
 private:
     I2CBus &_bus;
     uint8_t _i2c_addr;

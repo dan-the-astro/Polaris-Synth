@@ -162,6 +162,10 @@ class FrontPanelState {
         int adc0_channel = 0; // ADC channel for front panel reading
         int adc1_channel = 0; // ADC channel for front panel reading
 
+        // Flags to track if first conversion has been initiated for pipelining
+        bool adc0_first_conversion_started = false;
+        bool adc1_first_conversion_started = false;
+
         // Initial scan of the front panel to set initial states
         void initialScan();
 
