@@ -115,7 +115,7 @@ void FrontPanelState::ADC0StateMachine() {
     switch (adc0_channel) {
         case 0:
             setLFOInitialAmount(reading);
-            //Serial.println(reading);
+            Serial.println(reading);
             adc0_channel = 1;
             break;
         case 1:

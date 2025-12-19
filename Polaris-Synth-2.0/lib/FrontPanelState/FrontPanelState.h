@@ -180,19 +180,19 @@ class FrontPanelState {
         BiquadState adc1_biquad_state[10]; // Biquad state for ADC1 channels 0-9
         
         // Second-order Butterworth low-pass biquad filter
-        // Designed for good noise rejection while maintaining responsiveness
-        // Cutoff frequency ~10Hz at typical ADC sample rate (~100-200Hz per channel)
+        // Designed for strong noise rejection with more smoothing
+        // Cutoff frequency ~5Hz at typical ADC sample rate (~150Hz per channel)
         // Using fixed-point coefficients scaled by 32768 (2^15) for integer math
         inline int16_t applyBiquadFilter(BiquadState& state, int16_t new_reading) const {
             // Biquad coefficients for a Butterworth low-pass filter
-            // These values provide good noise filtering with acceptable lag
-            // b0 = 0.0674, b1 = 0.1349, b2 = 0.0674 (scaled by 32768)
-            // a1 = -1.1430, a2 = 0.4128 (scaled by 32768)
-            constexpr int32_t b0 = 2208;   // 0.0674 * 32768
-            constexpr int32_t b1 = 4417;   // 0.1349 * 32768
-            constexpr int32_t b2 = 2208;   // 0.0674 * 32768
-            constexpr int32_t a1 = -37449; // -1.1430 * 32768
-            constexpr int32_t a2 = 13526;  // 0.4128 * 32768
+            // These values provide stronger noise filtering with more smoothing
+            // b0 = 0.0093, b1 = 0.0186, b2 = 0.0093 (scaled by 32768)
+            // a1 = -1.7090, a2 = 0.7463 (scaled by 32768)
+            constexpr int32_t b0 = 305;    // 0.0093 * 32768
+            constexpr int32_t b1 = 611;    // 0.0186 * 32768
+            constexpr int32_t b2 = 305;    // 0.0093 * 32768
+            constexpr int32_t a1 = -56017; // -1.7090 * 32768
+            constexpr int32_t a2 = 24453;  // 0.7463 * 32768
             
             // Direct Form I implementation: y[n] = b0*x[n] + b1*x[n-1] + b2*x[n-2] - a1*y[n-1] - a2*y[n-2]
             int32_t output = b0 * static_cast<int32_t>(new_reading)
@@ -204,9 +204,9 @@ class FrontPanelState {
             // Scale back down (divide by 32768)
             output >>= 15;
             
-            // Clamp to int16_t range
-            if (output > INT16_MAX) output = INT16_MAX;
-            if (output < INT16_MIN) output = INT16_MIN;
+            // Clamp to valid ADC range (non-negative, max 12-bit value)
+            if (output > 4095) output = 4095;
+            if (output < 0) output = 0;
             
             int16_t result = static_cast<int16_t>(output);
             
