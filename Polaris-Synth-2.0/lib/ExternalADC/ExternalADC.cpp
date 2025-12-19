@@ -64,3 +64,19 @@ int16_t ExternalADC::readChannel(uint8_t channel)
     return static_cast<int16_t>(raw) >> 4;
 }
 
+void ExternalADC::startConversion(uint8_t channel)
+{
+    (void)channel;
+
+    // Start single-shot conversion without waiting
+    writeReg(ADS1015_REG_CONFIG, ADS1015_BASE_CONFIG | ADS1015_CFG_OS_SINGLE);
+}
+
+int16_t ExternalADC::readConversionResult()
+{
+    uint16_t raw = 0;
+    readReg(ADS1015_REG_CONVERSION, &raw);
+
+    return static_cast<int16_t>(raw) >> 4;
+}
+

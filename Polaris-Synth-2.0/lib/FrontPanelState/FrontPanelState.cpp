@@ -95,7 +95,17 @@ void FrontPanelState::checkADCs() {
 
 void FrontPanelState::ADC0StateMachine() {
 
-    int16_t reading = adc0->readChannel(0); // Read channel 0
+    int16_t reading = 0;
+
+    // If this is the first iteration, start the conversion and return
+    if (!adc0_first_conversion_started) {
+        adc0_first_conversion_started = true;
+        adc0->startConversion(0);
+        return;
+    }
+
+    // Read the result of the conversion that was started in the previous iteration
+    reading = adc0->readConversionResult();
 
     //Serial.printf("ADC0 Channel %d Reading: %d\n", adc0_channel, reading);
 
@@ -171,12 +181,24 @@ void FrontPanelState::ADC0StateMachine() {
     gpio_set_level(static_cast<gpio_num_t>(32), 1); // Set CLK high
     gpio_set_level(static_cast<gpio_num_t>(32), 0); // Set CLK low
     
+    // Start the conversion for the next iteration (pipelined approach)
+    adc0->startConversion(0);
 }
 
 
 void FrontPanelState::ADC1StateMachine() {
 
-    int16_t reading = adc1->readChannel(0); // Read channel 0
+    int16_t reading = 0;
+
+    // If this is the first iteration, start the conversion and return
+    if (!adc1_first_conversion_started) {
+        adc1_first_conversion_started = true;
+        adc1->startConversion(0);
+        return;
+    }
+
+    // Read the result of the conversion that was started in the previous iteration
+    reading = adc1->readConversionResult();
 
     switch (adc1_channel) {
         case 0:
@@ -225,6 +247,8 @@ void FrontPanelState::ADC1StateMachine() {
     gpio_set_level(static_cast<gpio_num_t>(25), 1); // Set CLK high
     gpio_set_level(static_cast<gpio_num_t>(25), 0); // Set CLK low
 
+    // Start the conversion for the next iteration (pipelined approach)
+    adc1->startConversion(0);
 }
 
 // Functions to map raw ADC readings to internal state variables (0-1650 = 0-3.3V)
