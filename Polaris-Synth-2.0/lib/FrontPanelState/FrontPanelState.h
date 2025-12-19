@@ -173,8 +173,10 @@ class FrontPanelState {
         
         // EMA filter function with K=7 using integer math
         // filtered = (6 * filtered + new_reading) / 7
-        inline int16_t applyEMAFilter(int16_t filtered_value, int16_t new_reading) {
-            return (6 * filtered_value + new_reading) / 7;
+        inline int16_t applyEMAFilter(int16_t filtered_value, int16_t new_reading) const {
+            // Use int32_t to prevent overflow during multiplication
+            int32_t temp = (6 * static_cast<int32_t>(filtered_value) + static_cast<int32_t>(new_reading)) / 7;
+            return static_cast<int16_t>(temp);
         }
 
         // Initial scan of the front panel to set initial states
