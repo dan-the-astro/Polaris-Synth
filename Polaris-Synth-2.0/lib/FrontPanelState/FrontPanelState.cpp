@@ -106,6 +106,10 @@ void FrontPanelState::ADC0StateMachine() {
 
     // Read the result of the conversion that was started in the previous iteration
     reading = adc0->readConversionResult();
+    
+    // Apply EMA filter with K=7
+    adc0_filtered[adc0_channel] = applyEMAFilter(adc0_filtered[adc0_channel], reading);
+    reading = adc0_filtered[adc0_channel];
 
     //Serial.printf("ADC0 Channel %d Reading: %d\n", adc0_channel, reading);
 
@@ -199,6 +203,10 @@ void FrontPanelState::ADC1StateMachine() {
 
     // Read the result of the conversion that was started in the previous iteration
     reading = adc1->readConversionResult();
+    
+    // Apply EMA filter with K=7
+    adc1_filtered[adc1_channel] = applyEMAFilter(adc1_filtered[adc1_channel], reading);
+    reading = adc1_filtered[adc1_channel];
 
     switch (adc1_channel) {
         case 0:

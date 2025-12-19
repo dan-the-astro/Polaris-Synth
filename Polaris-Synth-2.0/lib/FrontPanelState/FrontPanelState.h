@@ -166,6 +166,17 @@ class FrontPanelState {
         bool adc0_first_conversion_started = false;
         bool adc1_first_conversion_started = false;
 
+        // EMA filter state for ADC readings (K=7)
+        // Store filtered values for each ADC channel
+        int16_t adc0_filtered[16] = {0}; // Filtered values for ADC0 channels 0-15
+        int16_t adc1_filtered[10] = {0}; // Filtered values for ADC1 channels 0-9
+        
+        // EMA filter function with K=7 using integer math
+        // filtered = (6 * filtered + new_reading) / 7
+        inline int16_t applyEMAFilter(int16_t filtered_value, int16_t new_reading) {
+            return (6 * filtered_value + new_reading) / 7;
+        }
+
         // Initial scan of the front panel to set initial states
         void initialScan();
 
