@@ -1,5 +1,6 @@
 #include <Arduino.h>
 #include <cstdint>
+#include <climits>
 #include <FixedPoint.h>
 #include "ExternalADC.h"
 #include "IOExpander.h"
@@ -204,8 +205,8 @@ class FrontPanelState {
             output >>= 15;
             
             // Clamp to int16_t range
-            if (output > 32767) output = 32767;
-            if (output < -32768) output = -32768;
+            if (output > INT16_MAX) output = INT16_MAX;
+            if (output < INT16_MIN) output = INT16_MIN;
             
             int16_t result = static_cast<int16_t>(output);
             
