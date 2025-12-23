@@ -262,7 +262,9 @@ void FrontPanelState::ADC1StateMachine() {
 
 void FrontPanelState::setLFOInitialAmount(int16_t value) { 
     // Map 0-1650 to 0.0 - 1.0 (Q16.16 fixed point)
-    LFO_initial_amount = (static_cast<uint32_t>(value) << 16) / 1650;
+    if (value < 0) value = 0;
+    if (value > 1650) value = 1650;
+    LFO_initial_amount = (static_cast<int32_t>(value) << 16) / 1650;
 }
 
 void FrontPanelState::setLFOFrequency(int16_t value) { 
@@ -274,7 +276,7 @@ void FrontPanelState::setLFOFrequency(int16_t value) {
     constexpr float max_freq = 40.0f;
     float norm = static_cast<float>(value) / 1650.0f;
     float freq = min_freq * powf(max_freq / min_freq, norm);
-    LFO_frequency = static_cast<uint32_t>(freq * 65536.0f); // Q16.16 fixed point
+    LFO_frequency = static_cast<int32_t>(freq * 65536.0f); // Q16.16 fixed point
 }
 
 void FrontPanelState::setOscAFrequency(int16_t value) { 
@@ -289,7 +291,7 @@ void FrontPanelState::setOscAPulseWidth(int16_t value) {
     // Map 0-1650 to 0.0 - 1.0 (Q16.16 fixed point)
     if (value < 0) value = 0;
     if (value > 1650) value = 1650;
-    OscA_pulse_width = (static_cast<uint32_t>(value) << 16) / 1650;
+    OscA_pulse_width = (static_cast<int32_t>(value) << 16) / 1650;
  }
 
 void FrontPanelState::setOscBFrequency(int16_t value) { 
@@ -304,56 +306,56 @@ void FrontPanelState::setOscBPulseWidth(int16_t value) {
     // Map 0-1650 to 0.0 - 1.0 (Q16.16 fixed point)
     if (value < 0) value = 0;
     if (value > 1650) value = 1650;
-    OscB_pulse_width = (static_cast<uint32_t>(value) << 16) / 1650;
+    OscB_pulse_width = (static_cast<int32_t>(value) << 16) / 1650;
  }
 
 void FrontPanelState::setOscBFine(int16_t value) { 
     // Map 0-1650 to 0.0 - 1.0 (Q16.16 fixed point)
     if (value < 0) value = 0;
     if (value > 1650) value = 1650;
-    OscB_fine = (static_cast<uint32_t>(value) << 16) / 1650;
+    OscB_fine = (static_cast<int32_t>(value) << 16) / 1650;
  }
 
 void FrontPanelState::setWheelSourceMix(int16_t value) { 
     // Map 0-1650 to 0.0 - 1.0 (Q16.16 fixed point)
     if (value < 0) value = 0;
     if (value > 1650) value = 1650;
-    Wheel_source_mix = (static_cast<uint32_t>(value) << 16) / 1650;
+    Wheel_source_mix = (static_cast<int32_t>(value) << 16) / 1650;
  }
 
 void FrontPanelState::setPolyFiltEnvAmt(int16_t value) { 
     // Map 0-1650 to 0.0 - 1.0 (Q16.16 fixed point)
     if (value < 0) value = 0;
     if (value > 1650) value = 1650;
-    Poly_filt_env_amt = (static_cast<uint32_t>(value) << 16) / 1650;
+    Poly_filt_env_amt = (static_cast<int32_t>(value) << 16) / 1650;
  }
 
 void FrontPanelState::setPolyOscBAmount(int16_t value) { 
     // Map 0-1650 to 0.0 - 1.0 (Q16.16 fixed point)
     if (value < 0) value = 0;
     if (value > 1650) value = 1650;
-    Poly_oscB_amount = (static_cast<uint32_t>(value) << 16) / 1650;
+    Poly_oscB_amount = (static_cast<int32_t>(value) << 16) / 1650;
  }
 
 void FrontPanelState::setMixerOscALevel(int16_t value) { 
     // Map 0-1650 to 0.0 - 1.0 (Q16.16 fixed point)
     if (value < 0) value = 0;
     if (value > 1650) value = 1650;
-    Mixer_oscA_level = (static_cast<uint32_t>(value) << 16) / 1650;
+    Mixer_oscA_level = (static_cast<int32_t>(value) << 16) / 1650;
  }
 
 void FrontPanelState::setMixerOscBLevel(int16_t value) { 
     // Map 0-1650 to 0.0 - 1.0 (Q16.16 fixed point)
     if (value < 0) value = 0;
     if (value > 1650) value = 1650;
-    Mixer_oscB_level = (static_cast<uint32_t>(value) << 16) / 1650;
+    Mixer_oscB_level = (static_cast<int32_t>(value) << 16) / 1650;
  }
 
 void FrontPanelState::setMixerNoiseLevel(int16_t value) { 
     // Map 0-1650 to 0.0 - 1.0 (Q16.16 fixed point)
     if (value < 0) value = 0;
     if (value > 1650) value = 1650;
-    Mixer_noise_level = (static_cast<uint32_t>(value) << 16) / 1650;
+    Mixer_noise_level = (static_cast<int32_t>(value) << 16) / 1650;
  }
 
 void FrontPanelState::setFilterCutoff(int16_t value) { 
@@ -365,7 +367,7 @@ void FrontPanelState::setFilterCutoff(int16_t value) {
     constexpr float max_freq = 22050.0f; // 1/2 sample rate
     float norm = static_cast<float>(value) / 1650.0f;
     float freq = min_freq * powf(max_freq / min_freq, norm);
-    LFO_frequency = static_cast<uint32_t>(freq * 65536.0f); // Q16.16 fixed point
+    LFO_frequency = static_cast<int32_t>(freq * 65536.0f); // Q16.16 fixed point
  }
 
 void FrontPanelState::setFilterResonance(int16_t value) { 
@@ -373,14 +375,14 @@ void FrontPanelState::setFilterResonance(int16_t value) {
     if (value < 0) value = 0;
     if (value > 1650) value = 1650;
     float reso = 0.5f + (static_cast<float>(value) / 1650.0f) * (10.0f - 0.5f);
-    Filter_resonance = static_cast<uint32_t>(reso * 65536.0f); // Q16.16 fixed point
+    Filter_resonance = static_cast<int32_t>(reso * 65536.0f); // Q16.16 fixed point
  }
 
 void FrontPanelState::setFilterEnvAmt(int16_t value) { 
     // Map 0-1650 to 0.0 - 1.0 (Q16.16 fixed point)
     if (value < 0) value = 0;
     if (value > 1650) value = 1650;
-    Filter_env_amt = (static_cast<uint32_t>(value) << 16) / 1650;
+    Filter_env_amt = (static_cast<int32_t>(value) << 16) / 1650;
  }
 
 void FrontPanelState::setFilterAttack(int16_t value) { 
@@ -388,7 +390,7 @@ void FrontPanelState::setFilterAttack(int16_t value) {
     if (value < 0) value = 0;
     if (value > 1650) value = 1650;
     float attack = (static_cast<float>(value) / 1650.0f) * 10.0f;
-    Filter_attack = static_cast<uint32_t>(attack * 65536.0f); // Q16.16 fixed point
+    Filter_attack = static_cast<int32_t>(attack * 65536.0f); // Q16.16 fixed point
  }
 
 void FrontPanelState::setFilterDecay(int16_t value) { 
@@ -396,7 +398,7 @@ void FrontPanelState::setFilterDecay(int16_t value) {
     if (value < 0) value = 0;
     if (value > 1650) value = 1650;
     float decay = (static_cast<float>(value) / 1650.0f) * 10.0f;
-    Filter_decay = static_cast<uint32_t>(decay * 65536.0f); // Q16.16 fixed point
+    Filter_decay = static_cast<int32_t>(decay * 65536.0f); // Q16.16 fixed point
  }
 
 void FrontPanelState::setFilterSustain(int16_t value) { 
@@ -404,7 +406,7 @@ void FrontPanelState::setFilterSustain(int16_t value) {
     if (value < 0) value = 0;
     if (value > 1650) value = 1650;
     float sustain = static_cast<float>(value) / 1650.0f;
-    Filter_sustain = static_cast<uint32_t>(sustain * 65536.0f); // Q16.16 fixed point
+    Filter_sustain = static_cast<int32_t>(sustain * 65536.0f); // Q16.16 fixed point
  }
 
 void FrontPanelState::setFilterRelease(int16_t value) { 
@@ -412,7 +414,7 @@ void FrontPanelState::setFilterRelease(int16_t value) {
     if (value < 0) value = 0;
     if (value > 1650) value = 1650;
     float release = (static_cast<float>(value) / 1650.0f) * 10.0f;
-    Filter_release = static_cast<uint32_t>(release * 65536.0f); // Q16.16 fixed point
+    Filter_release = static_cast<int32_t>(release * 65536.0f); // Q16.16 fixed point
  }
 
 void FrontPanelState::setAmpAttack(int16_t value) { 
@@ -420,7 +422,7 @@ void FrontPanelState::setAmpAttack(int16_t value) {
     if (value < 0) value = 0;
     if (value > 1650) value = 1650;
     float attack = (static_cast<float>(value) / 1650.0f) * 10.0f;
-    Amp_attack = static_cast<uint32_t>(attack * 65536.0f); // Q16.16 fixed point
+    Amp_attack = static_cast<int32_t>(attack * 65536.0f); // Q16.16 fixed point
  }
 
 void FrontPanelState::setAmpDecay(int16_t value) { 
@@ -428,7 +430,7 @@ void FrontPanelState::setAmpDecay(int16_t value) {
     if (value < 0) value = 0;
     if (value > 1650) value = 1650;
     float decay = (static_cast<float>(value) / 1650.0f) * 10.0f;
-    Amp_decay = static_cast<uint32_t>(decay * 65536.0f); // Q16.16 fixed point
+    Amp_decay = static_cast<int32_t>(decay * 65536.0f); // Q16.16 fixed point
  }
 
 void FrontPanelState::setAmpSustain(int16_t value) { 
@@ -436,7 +438,7 @@ void FrontPanelState::setAmpSustain(int16_t value) {
     if (value < 0) value = 0;
     if (value > 1650) value = 1650;
     float sustain = static_cast<float>(value) / 1650.0f;
-    Amp_sustain = static_cast<uint32_t>(sustain * 65536.0f); // Q16.16 fixed point
+    Amp_sustain = static_cast<int32_t>(sustain * 65536.0f); // Q16.16 fixed point
  }
 
 void FrontPanelState::setAmpRelease(int16_t value) { 
@@ -444,14 +446,14 @@ void FrontPanelState::setAmpRelease(int16_t value) {
     if (value < 0) value = 0;
     if (value > 1650) value = 1650;
     float release = (static_cast<float>(value) / 1650.0f) * 10.0f;
-    Amp_release = static_cast<uint32_t>(release * 65536.0f); // Q16.16 fixed point
+    Amp_release = static_cast<int32_t>(release * 65536.0f); // Q16.16 fixed point
  }
 
 void FrontPanelState::setMasterLevel(int16_t value) { 
     // Map 0-1650 to 0.0 - 1.0 (Q16.16 fixed point)
     if (value < 0) value = 0;
     if (value > 1650) value = 1650;
-    Master_level = (static_cast<uint32_t>(value) << 16) / 1650;
+    Master_level = (static_cast<int32_t>(value) << 16) / 1650;
  }
 
 void FrontPanelState::setGlideRate(int16_t value) { 
@@ -459,6 +461,6 @@ void FrontPanelState::setGlideRate(int16_t value) {
     if (value < 0) value = 0;
     if (value > 1650) value = 1650;
     float glide = (static_cast<float>(value) / 1650.0f) * 5.0f;
-    Glide_rate = static_cast<uint32_t>(glide * 65536.0f); // Q16.16 fixed point
+    Glide_rate = static_cast<int32_t>(glide * 65536.0f); // Q16.16 fixed point
  }
 

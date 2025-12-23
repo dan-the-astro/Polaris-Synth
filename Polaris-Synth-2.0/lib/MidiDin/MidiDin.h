@@ -1,0 +1,6 @@
+class MidiDin {
+    public:
+
+    private:
+
+};

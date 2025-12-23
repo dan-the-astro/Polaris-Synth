@@ -1,0 +1,6 @@
+class PatchManager {
+    public:
+
+    private:
+
+};
