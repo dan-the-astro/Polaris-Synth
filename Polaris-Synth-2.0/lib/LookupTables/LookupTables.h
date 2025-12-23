@@ -1,9 +1,9 @@
 // Header for look up tables
 
+#pragma once
+
 #include "esp_attr.h"
 #include <cstdint>
-
-#pragma once
 
 // -------------------------------------------------------
 // Configuration
@@ -25,15 +25,13 @@
 
 // Lookup table for sine function
 
-static const int32_t DRAM_ATTR sine_table[SINE_TABLE_SIZE];
+extern const int32_t sine_table[SINE_TABLE_SIZE];
 
 // Lookup table for MIDI notes to phase increments
 
-static const float DRAM_ATTR midi_note_table[MIDI_NOTES];
-
+extern const int32_t midi_note_table[MIDI_NOTES];
 // Lookup table for fractional part of phase increment
 
-static const float DRAM_ATTR frac_table[FRAC_TABLE_SIZE];
-
+extern const int32_t frac_table[FRAC_TABLE_SIZE];
 
 

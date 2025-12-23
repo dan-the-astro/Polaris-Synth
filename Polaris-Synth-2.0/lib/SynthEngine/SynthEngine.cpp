@@ -1,6 +1,4 @@
 #include "Arduino.h"
-#include "LookupTables.h"
-#include "SynthVoice.h"
 #include "SynthEngine.h"
 
 SynthEngine::SynthEngine(uint8_t numVoices) {

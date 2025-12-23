@@ -1,6 +1,7 @@
 #include <Arduino.h>
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
+#include "LookupTables.h"
 #include "PolarisManager.h"
 #include "SynthEngine.h"
 

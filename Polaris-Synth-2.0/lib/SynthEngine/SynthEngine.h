@@ -1,7 +1,8 @@
+#include "LookupTables.h"
 #include <cstdint>
 #include "SynthVoice.h"
 #include "driver/i2s.h"
-#include "LookupTables.h"
+
 
 class SynthEngine {
     public:
@@ -26,7 +27,7 @@ class SynthEngine {
         // Config struct for i2s peripheral
         const i2s_config_t i2s_config = {
             .mode = (i2s_mode_t)(I2S_MODE_MASTER | I2S_MODE_TX), // Master mode transmit
-            .sample_rate = SAMPLE_RATE, // 44.1k
+            .sample_rate = (int32_t)SAMPLE_RATE, // 44.1k
             .bits_per_sample = (i2s_bits_per_sample_t)(32), // 32b per sample
             .channel_format = I2S_CHANNEL_FMT_RIGHT_LEFT, // Stereo format
             .communication_format = I2S_COMM_FORMAT_STAND_I2S, // Standard Philips format

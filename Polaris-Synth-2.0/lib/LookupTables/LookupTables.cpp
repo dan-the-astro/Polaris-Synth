@@ -1,4 +1,4 @@
-// Implementation of LookupTable.h
+// Implementation of LookupTables.h
 
 #include "esp_attr.h"
 #include <cstdint>
@@ -8,7 +8,7 @@
 
 // Lookup table for sine function
 // Q16.16 format
-static const int32_t DRAM_ATTR sine_table[SINE_TABLE_SIZE] = {
+const int32_t DRAM_ATTR sine_table[SINE_TABLE_SIZE] = {
     0,        804,       1608,       2410,
  3212,       4011,       4808,       5602,
  6393,       7179,       7962,       8739,
@@ -78,7 +78,7 @@ static const int32_t DRAM_ATTR sine_table[SINE_TABLE_SIZE] = {
 // Lookup table for MIDI notes to phase increments
 // 2^32/Sample Rate
 
-static const float DRAM_ATTR midi_note_table[MIDI_NOTES] = {
+const int32_t DRAM_ATTR midi_note_table[MIDI_NOTES] = {
     796254,     843601,     893765,     946911,
    1003217,    1062871,    1126073,    1193033,
    1263974,    1339134,    1418763,    1503127,
@@ -115,7 +115,7 @@ static const float DRAM_ATTR midi_note_table[MIDI_NOTES] = {
 // Lookup table for fractional part of phase increment
 // Q16.16 format
 // Add the 1024 to the pitch offset to move it into the positive range
-static const float DRAM_ATTR frac_table[FRAC_TABLE_SIZE] = {
+const int32_t DRAM_ATTR frac_table[FRAC_TABLE_SIZE] = {
     41284,      41303,      41322,      41340,
     41359,      41378,      41396,      41415,
     41434,      41452,      41471,      41490,
