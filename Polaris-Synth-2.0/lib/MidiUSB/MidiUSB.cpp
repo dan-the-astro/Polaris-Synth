@@ -1,6 +1,6 @@
 #include "MidiUSB.h"
+#include "PolarisShared.h"
 #include <freertos/FreeRTOS.h>
-#include <freertos/semphr.h>
 #include <freertos/task.h>
 
 MidiUSB::MidiUSB(int intPin, int taskCore, UBaseType_t taskPrio)
@@ -14,45 +14,22 @@ bool MidiUSB::begin(MidiHandler* handler) {
     return false;
   }
 
-  // INT# pin
+  // INT# pin, observed as a level from the polling task. Deliberately NOT
+  // attached as a GPIO interrupt - see the class comment in MidiUSB.h.
   pinMode(intPin_, INPUT_PULLUP);
 
-  // Binary semaphore for ISR -> task wakeups
-  sem_ = xSemaphoreCreateBinary();
-  if (!sem_) return false;
-
-  // Background task (pinned core optional)
+  // Background polling task (pinned core optional). UHS2 device enumeration
+  // runs on this stack; 4096 bytes is marginal with 32-bit frames.
   BaseType_t ok = xTaskCreatePinnedToCore(
-      taskThunk, "uhs-midi", 4096, this, taskPrio_, &task_, taskCore_);
-  if (ok != pdPASS) return false;
-
-  // Attach interrupt after task exists
-  attachInterruptArg(intPin_, isrThunk, this, FALLING);
-
-  return true;
+      taskThunk, "uhs-midi", 6144, this, taskPrio_, &task_, taskCore_);
+  return ok == pdPASS;
 }
 
 void MidiUSB::end() {
-  detachInterrupt(intPin_);
   if (task_) {
     vTaskDelete(task_);
     task_ = nullptr;
   }
-  if (sem_) {
-    vSemaphoreDelete(sem_);
-    sem_ = nullptr;
-  }
-}
-
-void IRAM_ATTR MidiUSB::isrThunk(void* arg) {
-  static_cast<MidiUSB*>(arg)->isr();
-}
-
-void MidiUSB::isr() {
-  intPending_ = true;
-  BaseType_t hpw = pdFALSE;
-  if (sem_) xSemaphoreGiveFromISR(sem_, &hpw);
-  if (hpw == pdTRUE) portYIELD_FROM_ISR();
 }
 
 void MidiUSB::taskThunk(void* arg) {
@@ -60,16 +37,39 @@ void MidiUSB::taskThunk(void* arg) {
 }
 
 void MidiUSB::taskLoop() {
+  uint32_t boot = millis();
+  lastDiagMs_ = boot;
   for (;;) {
-    // Sleep until an INT# edge arrives
-    if (xSemaphoreTake(sem_, portMAX_DELAY) == pdTRUE) {
-      // Drain all pending conditions while INT may remain asserted
-      // (MAX3421E can hold INT low until serviced).
-      do {
-        handleUsbOnce();
-        drainMidi();
-        // Keep looping while INT is still low or more pending work flagged.
-      } while ((digitalRead(intPin_) == LOW) || (intPending_ && (intPending_ = false, false)));
+    diagLoops_++;
+    // 1kHz service rate, like the proven polled design of the 1.x firmware.
+    // The delay also guarantees this (priority 4) task can never starve
+    // core 1, whatever the INT# line or the controller do.
+    vTaskDelay(pdMS_TO_TICKS(1));
+
+    if (digitalRead(intPin_) == LOW) {
+      // Service and clear the MAX3421E IRQ flags. (With the GPIO2 INT patch the
+      // library's Task() also reads the correct pin; this is belt-and-braces.)
+      usb_.IntHandler();
+    }
+
+    handleUsbOnce();   // advance the USB state machine
+    drainMidi();       // forward received MIDI packets
+
+    uint32_t now = millis();
+    // Heartbeat: one line per second. When the keyboard locks up, compare this
+    // against a healthy line. Healthy looks like loops~1000 with msgs>0 while
+    // playing; a wedge shows loops~1000, msgs=0, and either errs>0 (transfer
+    // errors) or lastrc=0x04 (device gone silent / NAK). loops<<1000 means the
+    // task is blocked in a transfer; qfree=0 means the event queue backed up.
+    if ((now - lastDiagMs_) >= 1000) {
+      lastDiagMs_ = now;
+      int qfree = PolarisShared::midiEventQueue
+                      ? (int)uxQueueSpacesAvailable(PolarisShared::midiEventQueue)
+                      : -1;
+      Serial.printf("[usbmidi] st=0x%02X loops=%u msgs=%u errs=%u lastrc=0x%02X qfree=%d\n",
+                    usb_.getUsbTaskState(), diagLoops_, diagMsgs_, diagErrs_,
+                    diagLastRc_, qfree);
+      diagLoops_ = diagMsgs_ = diagErrs_ = 0;
     }
   }
 }
@@ -108,8 +108,8 @@ uint8_t MidiUSB::cinToMsgLen(uint8_t cin, uint8_t statusByte) {
   }
 }
 
-void MidiUSB::drainMidi() {
-  if (!handler_) return;
+bool MidiUSB::drainMidi() {
+  if (!handler_) return true;
 
   // USBH_MIDI::RecvData returns USB-MIDI event packets in multiples of 4 bytes.
   // We'll read until empty.
@@ -117,7 +117,13 @@ void MidiUSB::drainMidi() {
     uint8_t pkt[64];
     uint16_t rcvd = sizeof(pkt);
     uint8_t rc = midi_.RecvData(&rcvd, pkt);
-    if (rc != 0 || rcvd == 0) break;
+    diagLastRc_ = rc;
+    // hrNAK (or a zero-length read with no error) just means "no data right
+    // now" - a healthy idle poll. Any other non-zero code is a real transfer
+    // error (counted for the diagnostics heartbeat).
+    if (rc == hrNAK) return true;
+    if (rc != 0) { diagErrs_++; return false; }
+    if (rcvd == 0) return true;
 
     // Parse 4-byte USB-MIDI Event Packets
     for (uint16_t i = 0; i + 3 < rcvd; i += 4) {
@@ -127,6 +133,7 @@ void MidiUSB::drainMidi() {
       uint8_t b3   = pkt[i + 3];
 
       const uint8_t msgLen = cinToMsgLen(cin, b1);
+      diagMsgs_++;
       if (msgLen == 1) {
         const uint8_t m[1] = { b1 };
         handler_->parse(m, 1);
@@ -142,4 +149,3 @@ void MidiUSB::drainMidi() {
     // If more is ready, RecvData will deliver on next call; loop continues.
   }
 }
-

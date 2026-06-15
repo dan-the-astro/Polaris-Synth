@@ -46,31 +46,27 @@ bool IOExpander::consumeInterruptFlag(bool clear)
     }
     return wasSet;
 }
+// Enable internal pull-ups for the pins set in 'mask'
+void IOExpander::enablePullups(uint16_t mask)
+{
+    uint8_t gppua = 0, gppub = 0;
+    readReg(0x0C, &gppua); // GPPUA
+    readReg(0x0D, &gppub); // GPPUB
+    gppua |= static_cast<uint8_t>(mask & 0xFF);
+    gppub |= static_cast<uint8_t>(mask >> 8);
+    writeReg(0x0C, gppua);
+    writeReg(0x0D, gppub);
+}
+
 // Write a single byte 'data' to register 'reg'
 void IOExpander::writeReg(uint8_t reg, uint8_t data)
 {
-    i2c_cmd_handle_t cmd = i2c_cmd_link_create();
-    i2c_master_start(cmd);
-    i2c_master_write_byte(cmd, (_i2c_addr << 1) | I2C_MASTER_WRITE, true);
-    i2c_master_write_byte(cmd, reg, true);
-    i2c_master_write_byte(cmd, data, true);
-    i2c_master_stop(cmd);
-    i2c_master_cmd_begin(_bus.port(), cmd, pdMS_TO_TICKS(1000));
-    i2c_cmd_link_delete(cmd);
+    _bus.writeReg8(_i2c_addr, reg, data);
 }
 // Read from register 'reg' into data pointer
 void IOExpander::readReg(uint8_t reg, uint8_t* data)
-{   
-    i2c_cmd_handle_t cmd = i2c_cmd_link_create();
-    i2c_master_start(cmd);
-    i2c_master_write_byte(cmd, (_i2c_addr << 1) | I2C_MASTER_WRITE, true);
-    i2c_master_write_byte(cmd, reg, true);
-    i2c_master_start(cmd);
-    i2c_master_write_byte(cmd, (_i2c_addr << 1) | I2C_MASTER_READ, true);
-    i2c_master_read_byte(cmd, data, I2C_MASTER_NACK);
-    i2c_master_stop(cmd);
-    i2c_master_cmd_begin(_bus.port(), cmd, pdMS_TO_TICKS(1000));
-    i2c_cmd_link_delete(cmd);
+{
+    _bus.readReg8(_i2c_addr, reg, data);
 }
 
 uint8_t IOExpander::readGPIOA()

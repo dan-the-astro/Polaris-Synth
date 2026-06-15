@@ -1,3 +1,5 @@
+#pragma once
+
 #include <cstdint>
 // Utility class for Q16.16 fixed-point arithmetic
 

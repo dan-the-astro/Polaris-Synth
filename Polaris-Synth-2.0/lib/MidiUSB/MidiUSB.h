@@ -7,26 +7,36 @@
 
 #include "MidiHandler.h"
 
+// Drives the MAX3421E USB host controller and forwards received USB-MIDI
+// packets to a MidiHandler.
+//
+// The controller is serviced by a dedicated 1kHz polling task; no GPIO
+// interrupt is used. The MAX3421E INT# output is open-drain level-mode
+// (UHS2 sets INTLEVEL), so against only the weak internal pull-up - and with
+// the devkit LED also hanging on GPIO2 - the "high" level sits in the
+// undefined input zone and an edge interrupt storms until the interrupt
+// watchdog resets the chip. The UHS2 state machine wants continuous polling
+// anyway, and 1ms of MIDI latency is inaudible.
 class MidiUSB {
 public:
   explicit MidiUSB(int intPin = 2, int taskCore = 1, UBaseType_t taskPrio = 1);
 
-  // Initialize USB core and start background task. Returns true on success.
+  // Initialize USB core and start the polling task. Returns true on success.
   bool begin(MidiHandler* handler);
 
-  // Stop the background task and detach interrupt.
+  // Stop the polling task.
   void end();
 
 private:
-  // --- ISR & task glue ---
-  static void IRAM_ATTR isrThunk(void* arg);
   static void taskThunk(void* arg);
-
-  void isr();
   void taskLoop();
 
   void handleUsbOnce();
-  void drainMidi();
+
+  // Reads and forwards all pending MIDI packets. Returns false if a real USB
+  // transfer error occurred (not just "no data"); the return value is currently
+  // only used to feed the diagnostics counters.
+  bool drainMidi();
 
   // Decode USB-MIDI CIN to number of valid MIDI bytes in pkt[1..3].
   static uint8_t cinToMsgLen(uint8_t cin, uint8_t statusByte);
@@ -38,16 +48,20 @@ private:
 
   MidiHandler* handler_ = nullptr;
 
-  // INT# from MAX3421E
+  // INT# from MAX3421E, read as a plain level only (never an interrupt source)
   int intPin_ = -1;
 
-  // Interrupt -> task sync
-  SemaphoreHandle_t sem_ = nullptr;
   TaskHandle_t task_ = nullptr;
   int taskCore_ = 1;
   UBaseType_t taskPrio_ = 1;
 
-  // Optional: coalesce multiple INTs before running heavy work
-  volatile bool intPending_ = false;
+  // Once-per-second diagnostics to characterise lockups. The error-based
+  // watchdog above never fired in the field, so we need to see what the link
+  // is actually doing when it wedges: is the task still looping, is the device
+  // sending data / NAKing / erroring, is the event queue backing up.
+  uint32_t diagLoops_ = 0;   // taskLoop iterations this second
+  uint32_t diagMsgs_ = 0;    // MIDI messages parsed this second
+  uint32_t diagErrs_ = 0;    // non-NAK transfer errors this second
+  uint8_t  diagLastRc_ = 0;  // last RecvData return code
+  uint32_t lastDiagMs_ = 0;
 };
-

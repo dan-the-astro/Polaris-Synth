@@ -1,33 +1,64 @@
 #include "I2CBus.h"
 
-I2CBus::I2CBus(i2c_port_t port)
-    : _port(port), _initialised(false)
+I2CBus::I2CBus(TwoWire &wire)
+    : _wire(wire), _initialised(false)
 {
 }
 
-esp_err_t I2CBus::init(gpio_num_t sda_pin, gpio_num_t scl_pin, uint32_t clk_speed)
+bool I2CBus::init(int sda_pin, int scl_pin, uint32_t clk_speed)
 {
     if (_initialised) {
-        return ESP_OK;
+        return true;
     }
-
-    i2c_config_t conf = {};
-    conf.mode = I2C_MODE_MASTER;
-    conf.sda_io_num = sda_pin;
-    conf.scl_io_num = scl_pin;
-    conf.sda_pullup_en = GPIO_PULLUP_ENABLE;
-    conf.scl_pullup_en = GPIO_PULLUP_ENABLE;
-    conf.master.clk_speed = clk_speed;
-
-    esp_err_t err = i2c_param_config(_port, &conf);
-    if (err != ESP_OK) {
-        return err;
-    }
-
-    err = i2c_driver_install(_port, conf.mode, 0, 0, 0);
-    if (err == ESP_OK) {
-        _initialised = true;
-    }
-    return err;
+    _initialised = _wire.begin(sda_pin, scl_pin, clk_speed);
+    return _initialised;
 }
 
+bool I2CBus::writeReg8(uint8_t addr, uint8_t reg, uint8_t data)
+{
+    _wire.beginTransmission(addr);
+    _wire.write(reg);
+    _wire.write(data);
+    return _wire.endTransmission() == 0;
+}
+
+bool I2CBus::readReg8(uint8_t addr, uint8_t reg, uint8_t *data)
+{
+    _wire.beginTransmission(addr);
+    _wire.write(reg);
+    if (_wire.endTransmission(false) != 0) { // repeated start
+        return false;
+    }
+    if (_wire.requestFrom(addr, (uint8_t)1) != 1) {
+        return false;
+    }
+    *data = _wire.read();
+    return true;
+}
+
+bool I2CBus::writeReg16(uint8_t addr, uint8_t reg, uint16_t value)
+{
+    _wire.beginTransmission(addr);
+    _wire.write(reg);
+    _wire.write(static_cast<uint8_t>(value >> 8));
+    _wire.write(static_cast<uint8_t>(value & 0xFF));
+    return _wire.endTransmission() == 0;
+}
+
+bool I2CBus::readReg16(uint8_t addr, uint8_t reg, uint16_t *value)
+{
+    _wire.beginTransmission(addr);
+    _wire.write(reg);
+    if (_wire.endTransmission(false) != 0) { // repeated start
+        return false;
+    }
+    if (_wire.requestFrom(addr, (uint8_t)2) != 2) {
+        return false;
+    }
+    uint8_t hi = _wire.read();
+    uint8_t lo = _wire.read();
+    if (value) {
+        *value = (static_cast<uint16_t>(hi) << 8) | lo;
+    }
+    return true;
+}

@@ -3,7 +3,6 @@
 #pragma once
 
 #include <cstdint>
-#include "driver/i2c.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 #include "I2CBus.h"
@@ -48,6 +47,11 @@ public:
     // and returns them packed like readGPIOPacked(). Use right after detecting
     // an interrupt if you need the latched-at-interrupt snapshot.
     uint16_t readCapturedPacked();
+
+    // Enable internal 100k pull-ups on the pins given in the 16-bit mask
+    // (bit 0..7 = GPA0..7, bit 8..15 = GPB0..7). Used for the UI buttons,
+    // which short the pin to ground when pressed.
+    void enablePullups(uint16_t mask);
 
 private:
     I2CBus &_bus;

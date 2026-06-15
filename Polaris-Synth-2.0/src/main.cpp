@@ -2,47 +2,50 @@
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 #include "LookupTables.h"
+#include "PolarisShared.h"
 #include "PolarisManager.h"
 #include "SynthEngine.h"
 
 #define NUM_VOICES 5
 
 
-void createPolarisManager(void* pvParameters) {
-    static PolarisManager* polaris_manager = nullptr;
-    if (!polaris_manager) {
-        polaris_manager = new PolarisManager();
-    }
+// Core 1: hardware manager (front panel, display, MIDI, patches)
+void polarisManagerTask(void* pvParameters) {
+    PolarisManager* polaris_manager = new PolarisManager();
+    polaris_manager->run(); // never returns
 }
 
-void createSynthEngine(void* pvParameters) {
-    static SynthEngine* synth_engine = nullptr;
-    if (!synth_engine) {
-        synth_engine = new SynthEngine(NUM_VOICES); 
-    }
+// Core 0: synth engine (all audio). Waits inside run() until the manager has
+// published the front panel state.
+void synthEngineTask(void* pvParameters) {
+    SynthEngine* synth_engine = new SynthEngine(NUM_VOICES);
+    synth_engine->run(); // never returns
 }
 
 
 void setup() {
 
-    // Create a task to run PolarisManager on core 1    
+    // Cross-core queue/globals must exist before either task starts
+    PolarisShared::init();
+
+    // Create a task to run PolarisManager on core 1
     xTaskCreatePinnedToCore(
-        createPolarisManager,
+        polarisManagerTask,
         "PolarisManager",
-        8192, // Stack size
+        12288, // Stack size: SD/FATFS mount, u8g2 and float printf all run here
         NULL,
-        configMAX_PRIORITIES - 1, // Highest priority
+        3, // Above the idle/loop tasks, below USB MIDI (prio 4)
         NULL,
         1 // Run on core 1
     );
 
-    // Create a task to run SynthEngine on core 0    
+    // Create a task to run SynthEngine on core 0
     xTaskCreatePinnedToCore(
-        createSynthEngine,
+        synthEngineTask,
         "SynthEngine",
         16384, // Stack size
         NULL,
-        configMAX_PRIORITIES, // Highest priority
+        configMAX_PRIORITIES - 2, // Audio gets (almost) top priority
         NULL,
         0 // Run on core 0
     );
@@ -54,5 +57,6 @@ void setup() {
 
 
 void loop() {
-
+    // Everything runs in the two pinned tasks
+    vTaskDelay(portMAX_DELAY);
 }
