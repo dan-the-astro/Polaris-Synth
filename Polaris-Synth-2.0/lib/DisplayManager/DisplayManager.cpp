@@ -25,7 +25,9 @@ void DisplayManager::attach(FrontPanelState* fp, PatchManager* pm) {
     panel = fp;
     patches = pm;
     // Leave the splash logo up for a moment before the first screen draw
-    nextDraw = millis() + 1500;
+
+    // Not needed anymore since the manager loop calls update() immediately after attach(), but if we wanted to show the splash for a fixed time after attach() we could set nextDraw here:
+    // nextDraw = millis() + 1500;
 }
 
 void DisplayManager::update() {

@@ -111,8 +111,11 @@ void PolarisManager::init_hardware() {
         // which contains the USB object - must live in static storage.
         static MidiUSB midi_usb_instance(USB_INT_PIN, 1 /*core*/, 4 /*prio*/);
         midi_usb = &midi_usb_instance;
+        // begin() now only spawns the polling task and returns immediately; the
+        // MAX3421E is initialized (with retries) on that task so a slow cold-boot
+        // oscillator no longer blocks boot or permanently kills USB MIDI.
         if (!midi_usb->begin(midi_handler)) {
-            Serial.println("USB MIDI init failed (no MAX3421E?)");
+            Serial.println("USB MIDI: failed to start polling task");
         }
     }
     Serial.println("[boot] DIN MIDI");
