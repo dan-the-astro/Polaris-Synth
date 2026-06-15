@@ -252,10 +252,10 @@ void DisplayManager::drawInfoScreen() {
     oled->print(buf);
 
     // Mixer level bars (Osc A / Osc B / Noise)
-    oled->setCursor(44, 5);
+    oled->setCursor(55, 5);
     oled->print("MIX");
 
-    static const int barX[3] = { 60, 84, 108 };
+    static const int barX[3] = { 70, 89, 108 };
     static const char* barLabel[3] = { "A", "B", "N" };
     const int32_t levels[3] = {
         panel->Mixer_oscA_level, panel->Mixer_oscB_level, panel->Mixer_noise_level
