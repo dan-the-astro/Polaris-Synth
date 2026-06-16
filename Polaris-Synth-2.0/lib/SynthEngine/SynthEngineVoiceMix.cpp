@@ -41,5 +41,10 @@ void IRAM_ATTR SynthEngine::renderBuffer(const RenderParams& p) {
         sampleBuffer[i + 1] = static_cast<int32_t>(s); // right
     }
 
+#if SYNTH_PROFILE
+    // Measure compute cost before the write, which blocks to pace the loop
+    profileBufferEnd();
+#endif
+
     writeAudioBuffer();
 }

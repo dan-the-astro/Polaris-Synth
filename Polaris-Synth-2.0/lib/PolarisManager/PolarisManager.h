@@ -40,7 +40,7 @@
 #define MIDI_DIN_RX_PIN 3
 
 // Number of polyphonic voices to create
-#define NUM_VOICES 5
+#define NUM_VOICES 6
 
 // Default MIDI channel
 #define MIDI_CHANNEL 1

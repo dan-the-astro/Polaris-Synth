@@ -6,7 +6,7 @@
 #include "PolarisManager.h"
 #include "SynthEngine.h"
 
-#define NUM_VOICES 5
+#define NUM_VOICES 6
 
 
 // Core 1: hardware manager (front panel, display, MIDI, patches)

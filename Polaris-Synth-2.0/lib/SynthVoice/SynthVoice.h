@@ -79,7 +79,14 @@ class SynthVoice {
         // sub-LSB truncation residue into the next sample (first-order error
         // feedback); without it the tiny low-cutoff coefficients quantize the
         // filter output to silence.
+        // filterCoef is the live coefficient set runFilter() uses; it is ramped
+        // per sample toward the control-rate target by filterCoefDelta so cutoff
+        // motion is smooth at audio rate without recomputing the trig per sample
+        // (see updateFilterCoefficients). filterCoefPrimed snaps the first set of
+        // a fresh voice instead of ramping up from stale/zero coefficients.
         int32_t filterCoef[5] = {0, 0, 0, 0, 0};
+        int32_t filterCoefDelta[5] = {0, 0, 0, 0, 0};
+        bool filterCoefPrimed = false;
         int32_t fltIn1 = 0, fltIn2 = 0, fltOut1 = 0, fltOut2 = 0;
         int32_t flt2In1 = 0, flt2In2 = 0, flt2Out1 = 0, flt2Out2 = 0;
         int32_t fltErr1 = 0, fltErr2 = 0;
@@ -242,6 +249,14 @@ class SynthVoice {
             flt2In1 = stage1;
             flt2Out2 = flt2Out1;
             flt2Out1 = PostFilterLevel;
+
+            // Ramp the coefficients one step toward the control-rate target.
+            // Both biquad stages above use the same set, so they stay consistent
+            // within a sample; the next control tick recomputes the delta from
+            // wherever this landed, so truncation drift self-corrects.
+            for (int k = 0; k < 5; k++) {
+                filterCoef[k] += filterCoefDelta[k];
+            }
         }
 
         // Apply the (interpolated) amp envelope; returns this voice's output

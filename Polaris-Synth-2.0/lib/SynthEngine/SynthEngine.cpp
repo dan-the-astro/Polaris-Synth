@@ -4,6 +4,9 @@
 #include "SynthEngine.h"
 #include "FrontPanelState.h"
 #include "PolarisShared.h"
+#if SYNTH_PROFILE
+#include "xtensa/core-macros.h"
+#endif
 
 SynthEngine::SynthEngine(uint8_t numVoices) {
     // Initialize voices
@@ -49,6 +52,9 @@ void SynthEngine::run() {
     Serial.println("SynthEngine running.");
 
     for (;;) {
+#if SYNTH_PROFILE
+        profStartCcount = xthal_get_ccount();
+#endif
         tickCounter++;
 
         // 1. Voice allocation from queued MIDI events
@@ -86,8 +92,53 @@ void SynthEngine::run() {
         // 4. Render 60 samples and push them to the I2S DMA (blocking write
         // paces this loop at the 735Hz control rate)
         renderBuffer(p);
+
+#if SYNTH_PROFILE
+        profileReport();
+#endif
     }
 }
+
+#if SYNTH_PROFILE
+// Capture the compute cost of this buffer (everything since the top of the loop
+// up to here), excluding the blocking i2s_write that follows. Tracks the
+// worst-case buffer and the number of voices that were sounding for it.
+void IRAM_ATTR SynthEngine::profileBufferEnd() {
+    uint32_t elapsed = xthal_get_ccount() - profStartCcount;
+    profSumCycles += elapsed;
+    profBufferCount++;
+    if (elapsed > profWorstCycles) {
+        profWorstCycles = elapsed;
+        uint8_t playing = 0;
+        for (uint8_t v = 0; v < voiceCount; v++) {
+            if (voices[v].isPlaying) playing++;
+        }
+        profWorstVoices = playing;
+    }
+}
+
+// Log worst-case and average compute load once per ~second. "load" is the
+// worst buffer as a percentage of the per-buffer cycle budget at the current
+// CPU clock and sample rate, so it reads directly as headroom used.
+void SynthEngine::profileReport() {
+    const uint32_t buffersPerSecond = (uint32_t)SAMPLE_RATE / kSamplesPerBuffer;
+    if (profBufferCount < buffersPerSecond) return;
+
+    uint64_t cpuHz = (uint64_t)getCpuFrequencyMhz() * 1000000ull;
+    uint32_t budget = (uint32_t)(cpuHz * kSamplesPerBuffer / (uint64_t)SAMPLE_RATE);
+    uint32_t avg = (uint32_t)(profSumCycles / profBufferCount);
+    uint32_t loadPct = (uint32_t)((uint64_t)profWorstCycles * 100 / budget);
+
+    Serial.printf(
+        "[synthprof] worst=%u avg=%u budget=%u cy/buf  load=%u%% (worst, %u voices sounding)\n",
+        profWorstCycles, avg, budget, loadPct, profWorstVoices);
+
+    profWorstCycles = 0;
+    profSumCycles = 0;
+    profBufferCount = 0;
+    profWorstVoices = 0;
+}
+#endif
 
 void SynthEngine::drainMidiEvents(const FrontPanelState& fp) {
     MidiEvent e;

@@ -53,5 +53,24 @@ void SynthVoice::updateFilterCoefficients(const FrontPanelState& fp, int32_t whe
     if (q < 0.5f) q = 0.5f;
     if (q > 10.0f) q = 10.0f;
 
-    polarisLowpassCoeffsQ30(cutoffPhaseInc, q, filterCoef);
+    // The trig stays at control rate; the render loop interpolates between the
+    // previous coefficients and this target across the buffer so the cutoff
+    // moves smoothly at audio rate. Difference is taken in 64-bit because a1
+    // spans nearly the full int32 range (Q2.30, |a1| can approach 2.0).
+    int32_t target[5];
+    polarisLowpassCoeffsQ30(cutoffPhaseInc, q, target);
+
+    if (filterCoefPrimed) {
+        for (int k = 0; k < 5; k++) {
+            filterCoefDelta[k] = static_cast<int32_t>(
+                (static_cast<int64_t>(target[k]) - filterCoef[k]) / kSamplesPerBuffer);
+        }
+    } else {
+        // First set after a fresh note-on: snap, don't ramp from stale state
+        for (int k = 0; k < 5; k++) {
+            filterCoef[k] = target[k];
+            filterCoefDelta[k] = 0;
+        }
+        filterCoefPrimed = true;
+    }
 }

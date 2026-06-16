@@ -29,6 +29,11 @@ void SynthVoice::noteOn(uint8_t note, uint32_t tick, int32_t detune) {
         flt2In1 = flt2In2 = flt2Out1 = flt2Out2 = 0;
         fltErr1 = fltErr2 = 0;
 
+        // Snap the first coefficient set instead of ramping from stale values
+        // (a stolen voice keeps its live coefficients and ramps for continuity)
+        filterCoefPrimed = false;
+        for (int k = 0; k < 5; k++) filterCoefDelta[k] = 0;
+
         // Glide starts from wherever this voice last was (glideIdx keeps its
         // previous value); updateGlide() jumps instantly when glide is off.
     }

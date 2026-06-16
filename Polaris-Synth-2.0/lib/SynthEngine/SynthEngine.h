@@ -5,6 +5,11 @@
 #include "SynthVoice.h"
 #include "driver/i2s.h"
 
+// Set to 1 to log per-buffer compute cost (control block + render, excluding
+// the blocking I2S write) once per second over Serial. Use it to read real
+// worst-case CPU headroom before changing NUM_VOICES or SAMPLE_RATE.
+#define SYNTH_PROFILE 1
+
 class FrontPanelState;
 
 // The synth engine owns all sound generation. It runs as a dedicated task on
@@ -50,6 +55,20 @@ class SynthEngine {
         uint32_t noiseState = 0x6D5A56F1u;
 
         int32_t sampleBuffer[2 * kSamplesPerBuffer]; // interleaved stereo
+
+#if SYNTH_PROFILE
+        // Cycle-count profiling of the compute path (set in run(), consumed in
+        // renderBuffer() just before the blocking write). ccount wraps every
+        // ~18s at 240MHz, but unsigned subtraction over one buffer is always
+        // valid since a buffer is far shorter than the wrap period.
+        uint32_t profStartCcount = 0;
+        uint32_t profWorstCycles = 0;
+        uint64_t profSumCycles = 0;
+        uint32_t profBufferCount = 0;
+        uint8_t profWorstVoices = 0;
+        void profileBufferEnd();   // called at end of compute, before i2s_write
+        void profileReport();      // called once per ~second from run()
+#endif
 
         // Config struct for i2s peripheral
         const i2s_config_t i2s_config = {
