@@ -8,7 +8,7 @@
 // Set to 1 to log per-buffer compute cost (control block + render, excluding
 // the blocking I2S write) once per second over Serial. Use it to read real
 // worst-case CPU headroom before changing NUM_VOICES or SAMPLE_RATE.
-#define SYNTH_PROFILE 1
+#define SYNTH_PROFILE 0
 
 class FrontPanelState;
 

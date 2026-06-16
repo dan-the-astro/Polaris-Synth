@@ -161,16 +161,17 @@ void MidiUSB::taskLoop() {
     // task is blocked in a transfer; qfree=0 means the event queue backed up.
     // vbus shows the bus state: 0=SE0/disconnected, 1=SE1/illegal,
     // 2=FSHOST/full-speed attached, 3=LSHOST/low-speed attached.
-    if ((now - lastDiagMs_) >= 1000) {
-      lastDiagMs_ = now;
-      int qfree = PolarisShared::midiEventQueue
-                      ? (int)uxQueueSpacesAvailable(PolarisShared::midiEventQueue)
-                      : -1;
-      Serial.printf("[usbmidi] st=0x%02X vbus=0x%02X loops=%u msgs=%u errs=%u lastrc=0x%02X qfree=%d\n",
-                    usb_.getUsbTaskState(), usb_.getVbusState(), diagLoops_,
-                    diagMsgs_, diagErrs_, diagLastRc_, qfree);
-      diagLoops_ = diagMsgs_ = diagErrs_ = 0;
-    }
+    
+    // if ((now - lastDiagMs_) >= 1000) {
+    //   lastDiagMs_ = now;
+    //   int qfree = PolarisShared::midiEventQueue
+    //                   ? (int)uxQueueSpacesAvailable(PolarisShared::midiEventQueue)
+    //                   : -1;
+    //   Serial.printf("[usbmidi] st=0x%02X vbus=0x%02X loops=%u msgs=%u errs=%u lastrc=0x%02X qfree=%d\n",
+    //                 usb_.getUsbTaskState(), usb_.getVbusState(), diagLoops_,
+    //                 diagMsgs_, diagErrs_, diagLastRc_, qfree);
+    //   diagLoops_ = diagMsgs_ = diagErrs_ = 0;
+    // }
   }
 }
 
