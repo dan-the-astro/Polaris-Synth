@@ -382,6 +382,28 @@ void DisplayManager::drawBodeScreen() {
         }
         prevY = y;
     }
+
+    // Overlay the current cutoff frequency and resonance Q so the numbers are
+    // readable alongside the curve. F is the 2^32-scaled phase increment
+    // (F = 2^32 * fc / fs), so fc = F * fs / 2^32 with fs = 44100Hz.
+    float fcHz = (float)F * (44100.0f / 4294967296.0f);
+    char fcStr[10];
+    if (fcHz >= 1000.0f)
+        snprintf(fcStr, sizeof(fcStr), "%.2fkHz", fcHz / 1000.0f);
+    else
+        snprintf(fcStr, sizeof(fcStr), "%dHz", (int)(fcHz + 0.5f));
+
+    char buf[24];
+    snprintf(buf, sizeof(buf), "Fc:%s Q:%.1f", fcStr, q);
+
+    // Clear a box behind the text (leaving the x=0 axis intact) so it stays
+    // legible where it crosses the plotted curve.
+    int w = oled->getStrWidth(buf);
+    oled->setDrawColor(0);
+    oled->drawBox(1, 0, w + 2, 7);
+    oled->setDrawColor(1);
+    oled->setCursor(2, 6);
+    oled->print(buf);
 }
 
 // Raw ADC diagnostic view: unfiltered readings for all 26 knob channels in a
