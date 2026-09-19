@@ -3,6 +3,27 @@
 #include <freertos/FreeRTOS.h>
 #include <freertos/task.h>
 
+namespace {
+// Wedge watchdog tuning. The detector must never punish normal playing:
+// silence only starts *probing*; only proof of a dead device forces a replug.
+constexpr uint32_t kNudgeSilenceMs        = 1200;  // silence before the one-shot clear-halt nudge
+constexpr uint32_t kNudgeBurstMsgs        = 24;    // burst size that makes the stop "suspicious"
+constexpr uint32_t kProbeSilenceMs        = 1500;  // silence before EP0 liveness probing starts
+constexpr uint32_t kProbeFastMs           = 500;   // probe interval right after the stream stops
+constexpr uint32_t kProbeSlowMs           = 5000;  // relaxed interval once the device proves alive
+constexpr uint16_t kProbeFastCount        = 6;     // successes before relaxing the interval
+constexpr uint8_t  kProbeFailLimit        = 2;     // consecutive failures = device firmware dead
+// EP0 NAK budget while probing: 2^6-1 = 63 NAKs (a few ms). The library
+// default is 32K-1 NAKs / 5s timeout, which would stall this task (and
+// starve core 1) when the device is wedged. 63 NAKs is still far more than
+// a healthy device ever needs for GET_STATUS.
+constexpr uint8_t  kProbeNakPower         = 6;
+constexpr uint32_t kPostRecoveryDiscardMs = 400;   // flush the stale-packet burst after replug
+constexpr uint32_t kReEnumRetryMs         = 6000;  // re-enum stalled -> retry replug
+constexpr uint32_t kReEnumRetrySlowMs     = 30000; // back off after repeated stalls
+constexpr uint8_t  kReEnumFastRetries     = 5;
+}  // namespace
+
 MidiUSB::MidiUSB(int intPin, int taskCore, UBaseType_t taskPrio)
 : intPin_(intPin), taskCore_(taskCore), taskPrio_(taskPrio) {}
 
@@ -113,6 +134,8 @@ void MidiUSB::taskLoop() {
     handleUsbOnce();   // advance the USB state machine
     drainMidi();       // forward received MIDI packets
 
+    serviceWedgeWatchdog(now);  // detect and heal a wedged device
+
     // One-shot cold-boot re-enumeration. The synth and the keyboard power up
     // together, so UHS2 enumerates the keyboard while its own USB stack is
     // still booting. That enumeration "succeeds" (state reaches RUNNING) but
@@ -124,11 +147,21 @@ void MidiUSB::taskLoop() {
     // re-enumeration (chip reset re-probes the bus; pushing the state machine
     // back to INITIALIZE drives a bus reset, re-address and re-configure). The
     // latch makes this happen exactly once so a healthy device is left alone.
-    if (!reEnumDone && usb_.getUsbTaskState() == USB_STATE_RUNNING) {
+    //
+    // The driver is released explicitly first. Relying on the INITIALIZE state
+    // to do it is a timing accident: Init()'s busprobe reports the attached
+    // device (FSHOST), and USB::Task() then overwrites INITIALIZE with SETTLE
+    // *before* the INITIALIZE case runs - the release only happens because the
+    // subsequent bus reset briefly reads SE0 and bounces the state machine
+    // through INITIALIZE again. If that window were ever missed, the driver
+    // would stay "consumed" and the device would re-enumerate with no driver
+    // bound (a dead keyboard). Releasing here makes it deterministic.
+    if (!reEnumDone && usb_.getUsbTaskState() == USB_STATE_RUNNING && !recovering_) {
       if (runningSinceMs == 0) {
         runningSinceMs = now;
       } else if ((now - runningSinceMs) >= 2000) {
         Serial.println("[usbmidi] cold-boot settle done, forcing one re-enumeration");
+        if (midi_.GetAddress() != 0) midi_.Release();
         usb_.Init();
         usb_.regWr(rHIEN, bmCONDETIE);  // re-apply: Init() re-enables bmFRAMEIE
         usb_.setUsbTaskState(USB_DETACHED_SUBSTATE_INITIALIZE);
@@ -161,7 +194,7 @@ void MidiUSB::taskLoop() {
     // task is blocked in a transfer; qfree=0 means the event queue backed up.
     // vbus shows the bus state: 0=SE0/disconnected, 1=SE1/illegal,
     // 2=FSHOST/full-speed attached, 3=LSHOST/low-speed attached.
-    
+
     // if ((now - lastDiagMs_) >= 1000) {
     //   lastDiagMs_ = now;
     //   int qfree = PolarisShared::midiEventQueue
@@ -226,15 +259,36 @@ bool MidiUSB::drainMidi() {
     if (rc != 0) { diagErrs_++; return false; }
     if (rcvd == 0) return true;
 
+    uint32_t now = millis();
+    // Post-recovery discard window: the device may flush a burst of stale
+    // wedge-era packets right after re-enumeration. Keep draining (that empties
+    // the queue) but don't play them - the note-offs they pair with are gone,
+    // so they would only re-create the stuck notes the recovery just cleared.
+    // (0 = inactive; the flag is cleared on expiry so the signed comparison
+    // can't misfire once millis() passes 2^31.)
+    bool discard = false;
+    if (discardUntilMs_ != 0) {
+      discard = (int32_t)(discardUntilMs_ - now) > 0;
+      if (!discard) discardUntilMs_ = 0;
+    }
+
     // Parse 4-byte USB-MIDI Event Packets
+    uint16_t msgCount = 0;
     for (uint16_t i = 0; i + 3 < rcvd; i += 4) {
       uint8_t cin  = pkt[i + 0] & 0x0F;
       uint8_t b1   = pkt[i + 1];
       uint8_t b2   = pkt[i + 2];
       uint8_t b3   = pkt[i + 3];
 
-      const uint8_t msgLen = cinToMsgLen(cin, b1);
+      // All-zero groups are padding, not MIDI events (same test the library's
+      // own RecvData(outBuf) uses). Skip so they don't inflate the counters.
+      if (cin == 0 && pkt[i] == 0 && b1 == 0 && b2 == 0 && b3 == 0) continue;
+
+      msgCount++;
       diagMsgs_++;
+      if (discard) continue;
+
+      const uint8_t msgLen = cinToMsgLen(cin, b1);
       if (msgLen == 1) {
         const uint8_t m[1] = { b1 };
         handler_->parse(m, 1);
@@ -246,7 +300,202 @@ bool MidiUSB::drainMidi() {
         handler_->parse(m, 3);
       }
     }
+    if (msgCount) noteMidiActivity(now, msgCount);
 
     // If more is ready, RecvData will deliver on next call; loop continues.
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Wedge watchdog
+//
+// Field capture of a lockup: st=0x90 loops~1000 msgs=0 errs=0 lastrc=0x04 -
+// the device stays attached and simply NAKs every IN token forever, which at
+// the transfer level is identical to "nobody is playing". A silence timeout
+// therefore can't distinguish a wedge from a held chord (that approach was
+// tried and rejected). What CAN distinguish them is asking the device:
+// GET_STATUS on EP0 is mandatory, costs 3 tiny transactions, and touches
+// nothing. A keyboard holding a chord answers instantly; a keyboard whose
+// firmware crashed (e.g. VBUS sag under a pitch-bend flood - it never happens
+// on a PC's stiff 5V rail) does not. Only that proof of death triggers the
+// replug, so normal playing can never be interrupted.
+// ---------------------------------------------------------------------------
+
+void MidiUSB::noteMidiActivity(uint32_t now, uint16_t msgCount) {
+  if ((now - lastMidiMs_) > 1000) burstMsgs_ = 0;  // gap ended the previous burst
+  burstMsgs_ += msgCount;
+  lastMidiMs_ = now;
+  nudgeDone_ = false;
+  probeFails_ = 0;
+  probeOks_ = 0;
+}
+
+uint8_t MidiUSB::probeEp0(uint8_t addr) {
+  // Bound EP0's NAK tolerance for the probe so a wedged device (hardware
+  // ACKs the SETUP, firmware never serves the data stage) can't hold this
+  // task in the library's 5s transfer timeout. Restored afterwards.
+  EpInfo* ep0 = midi_.ep0Info();
+  uint8_t savedNakPower = ep0->bmNakPower;
+  ep0->bmNakPower = kProbeNakPower;
+  uint8_t status[2] = {0, 0};
+  uint8_t rc = usb_.ctrlReq(addr, 0,
+      USB_SETUP_DEVICE_TO_HOST | USB_SETUP_TYPE_STANDARD | USB_SETUP_RECIPIENT_DEVICE,
+      USB_REQUEST_GET_STATUS, 0, 0, 0, 2, 2, status, NULL);
+  ep0->bmNakPower = savedNakPower;
+  return rc;
+}
+
+uint8_t MidiUSB::clearHaltBulkIn(uint8_t addr) {
+  EpInfo* inEp = midi_.inEpInfo();
+  if (inEp->epAddr == 0) return 0xFF;
+  EpInfo* ep0 = midi_.ep0Info();
+  uint8_t savedNakPower = ep0->bmNakPower;
+  ep0->bmNakPower = kProbeNakPower;
+  // Standard endpoint reset, same as the library's mass-storage driver (and
+  // any PC host stack) issues: CLEAR_FEATURE(ENDPOINT_HALT) on the IN pipe.
+  uint8_t rc = usb_.ctrlReq(addr, 0,
+      USB_SETUP_HOST_TO_DEVICE | USB_SETUP_TYPE_STANDARD | USB_SETUP_RECIPIENT_ENDPOINT,
+      USB_REQUEST_CLEAR_FEATURE, USB_FEATURE_ENDPOINT_HALT, 0,
+      (uint16_t)(0x80 | inEp->epAddr), 0, 0, NULL, NULL);
+  ep0->bmNakPower = savedNakPower;
+  // Clearing halt resets the device's data toggle to DATA0; mirror it.
+  if (rc == 0) inEp->bmRcvToggle = 0;
+  return rc;
+}
+
+void MidiUSB::startSoftReplug(uint32_t now, const char* reason) {
+  recoveryCount_++;
+  recoveryRetries_ = recovering_ ? (uint8_t)(recoveryRetries_ + 1) : 0;
+  recovering_ = true;
+  recoveryStartMs_ = now;
+  Serial.printf("[usbmidi] RECOVERY #%u: %s - forcing software replug\n",
+                (unsigned)recoveryCount_, reason);
+
+  // The stuck notes' note-offs will never arrive; release them now.
+  PolarisShared::allNotesOff = true;
+
+  // Release the class driver FIRST, for the same reason as the cold-boot
+  // re-enumeration above: with the device still attached, the state machine
+  // never reliably reaches the INITIALIZE case that releases drivers, and a
+  // still-"consumed" driver means the device re-enumerates with no driver
+  // bound - which is exactly how the previous recovery attempt left the
+  // keyboard dead.
+  if (midi_.GetAddress() != 0) midi_.Release();
+
+  // Proven cold-boot replug sequence: full MAX3421E chip reset, then run the
+  // state machine from scratch (bus reset, re-address, re-configure).
+  if (usb_.Init() != 0) {
+    Serial.println("[usbmidi] RECOVERY: MAX3421E re-init failed, will retry");
+  }
+  usb_.regWr(rHIEN, bmCONDETIE);  // re-apply: Init() re-enables bmFRAMEIE
+  usb_.setUsbTaskState(USB_DETACHED_SUBSTATE_INITIALIZE);
+}
+
+void MidiUSB::serviceWedgeWatchdog(uint32_t now) {
+  // --- recovery in flight: wait for re-enumeration, retry if it stalls ---
+  if (recovering_) {
+    if (usb_.getUsbTaskState() == USB_STATE_RUNNING && midi_.GetAddress() != 0) {
+      recovering_ = false;
+      recoveryRetries_ = 0;
+      discardUntilMs_ = now + kPostRecoveryDiscardMs;
+      lastMidiMs_ = now;
+      burstMsgs_ = 0;
+      nudgeDone_ = false;
+      probeFails_ = 0;
+      probeOks_ = 0;
+      lastProbeMs_ = now;
+      wasRunning_ = true;
+      Serial.printf("[usbmidi] RECOVERY #%u: device re-enumerated OK\n",
+                    (unsigned)recoveryCount_);
+      return;
+    }
+    uint32_t retryAfter =
+        (recoveryRetries_ >= kReEnumFastRetries) ? kReEnumRetrySlowMs : kReEnumRetryMs;
+    if ((now - recoveryStartMs_) >= retryAfter) {
+      if (usb_.getUsbTaskState() == USB_STATE_RUNNING) {
+        // Enumerated, but our driver didn't bind (non-MIDI device?). Hand
+        // this to the attempt-capped driverless check below instead of
+        // replugging forever.
+        recovering_ = false;
+        wasRunning_ = false;
+        Serial.printf("[usbmidi] RECOVERY #%u: enumerated without MIDI driver\n",
+                      (unsigned)recoveryCount_);
+      } else {
+        // Device still not enumerating (a hard-crashed keyboard can stay dead
+        // until its own watchdog reboots it). Keep trying; a physical replug
+        // is detected through the normal detach path and also ends this.
+        startSoftReplug(now, "re-enumeration stalled, retrying");
+      }
+    }
+    return;
+  }
+
+  bool running = (usb_.getUsbTaskState() == USB_STATE_RUNNING);
+  uint8_t addr = running ? midi_.GetAddress() : 0;
+
+  // Fresh connection: arm the watchdog cleanly so a just-plugged keyboard
+  // isn't probed (or blamed) for pre-connection silence.
+  if (running && !wasRunning_) {
+    lastMidiMs_ = now;
+    burstMsgs_ = 0;
+    nudgeDone_ = false;
+    probeFails_ = 0;
+    probeOks_ = 0;
+    lastProbeMs_ = now;
+    runningNoDriverMs_ = now;
+  }
+  wasRunning_ = running;
+  if (!running) {
+    driverlessReplugs_ = 0;
+    return;
+  }
+
+  // RUNNING with no MIDI driver bound: the library enumerated the device
+  // without USBH_MIDI claiming it (the classic dead-keyboard failure mode).
+  // Give it 3s to settle, then force a clean replug. Attempt-capped so a
+  // genuinely unsupported device (e.g. a mouse) doesn't loop forever.
+  if (addr == 0) {
+    if ((now - runningNoDriverMs_) >= 3000 && driverlessReplugs_ < 3) {
+      driverlessReplugs_++;
+      startSoftReplug(now, "device enumerated but MIDI driver not bound");
+    }
+    return;
+  }
+  runningNoDriverMs_ = now;
+
+  uint32_t silence = now - lastMidiMs_;
+
+  // --- Tier 1: one-shot bulk-IN endpoint reset ("nudge") ---
+  // Fires when a heavy stream (pitch-bend flood signature) stops dead. On a
+  // healthy device that just went quiet this is a no-op (idle endpoint, both
+  // toggles reset in sync); on a partially-wedged device whose EP0 still
+  // works it is the standard way to un-stick the stream endpoint.
+  if (!nudgeDone_ && silence >= kNudgeSilenceMs) {
+    nudgeDone_ = true;
+    if (burstMsgs_ >= kNudgeBurstMsgs) {
+      uint8_t rc = clearHaltBulkIn(addr);
+      Serial.printf("[usbmidi] %u-msg burst stopped dead; bulk-IN clear-halt rc=0x%02X\n",
+                    (unsigned)burstMsgs_, rc);
+    }
+  }
+
+  // --- Tier 2: EP0 liveness probes ---
+  if (silence >= kProbeSilenceMs) {
+    uint32_t interval = (probeOks_ >= kProbeFastCount) ? kProbeSlowMs : kProbeFastMs;
+    if ((now - lastProbeMs_) >= interval) {
+      lastProbeMs_ = now;
+      uint8_t rc = probeEp0(addr);
+      if (rc == 0) {
+        if (probeOks_ < 0xFFFF) probeOks_++;
+        probeFails_ = 0;
+      } else {
+        probeFails_++;
+        Serial.printf("[usbmidi] EP0 liveness probe failed rc=0x%02X (%u/%u)\n",
+                      rc, (unsigned)probeFails_, (unsigned)kProbeFailLimit);
+        if (probeFails_ >= kProbeFailLimit) {
+          startSoftReplug(now, "device control endpoint dead (firmware wedge)");
+        }
+      }
+    }
   }
 }
